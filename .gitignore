@@ -1,0 +1,56 @@
+# Compiled Go binaries
+*.exe
+*.dll
+*.so
+*.bin
+
+# Temporary and runtime files
+/Hasil/
+/parallel_results/
+/data/exports/
+/data/checkpoint_*.json
+/data/history.json
+/logs/
+/test_data/exports/
+/test_data/checkpoint_*.json
+/test_data/history.json
+*.log
+*.csv
+
+# Cache and OS files
+.DS_Store
+Thumbs.db
+.cache/
+.tmp/
+node_modules/
+
+# Environment variables
+.env
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Debug and temporary output
+*.html
+!web/*.html
+*.txt
+!README*.txt
+*.png
+*.json
+!go.mod
+!go.sum
+!.env.example
+!provinces.json
+!regencies.json
+!districts.json
+!data/indonesia_geo.json
+!ui_tests/package.json
+!web/*.json

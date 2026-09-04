@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scraping Control Center — CSV Records & Manual Refresh</title>
+
+  <!-- Tailwind CSS & Inter Font -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0284c7',
+              700: '#0369a1',
+              900: '#0c4a6e',
+            },
+            dark: {
+              900: '#0b0f17',
+              800: '#111827',
+              700: '#1f2937',
+              600: '#374151',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Leaflet Map Engine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Leaflet MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #111827; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col md:flex-row antialiased overflow-x-hidden">
+
+  <!-- SIDEBAR NAVIGATION -->
+  <aside class="w-full md:w-64 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-20">
+    <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+          <i data-lucide="map-pin" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-sm tracking-wide text-slate-900">Scraping Engine</h1>
+          <span class="text-xs text-blue-600 font-medium">Control Center v2.0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav Links -->
+    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+      <div class="px-3 py-2 text-[10px] font-semibold tracking-wider text-slate-600 uppercase">Menu Utama</div>
+      
+      <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-item active flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg text-slate-900 bg-slate-100 transition">
+        <i data-lucide="layout-dashboard" class="w-4 h-4 mr-3 text-blue-600"></i>
+        Dashboard
+      </button>
+
+      <button onclick="switchTab('new-job')" id="nav-new-job" class="nav-item flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100/60 transition">
+        <i data-lucide="plus-circle" class="w-4 h-4 mr-3 text-slate-600"></i>
+        Buat Pencarian Baru
+      </button>
+
+      <button onclick="switchTab('jobs')" id="nav-jobs" class="nav-item flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100/60 transition">
+        <i data-lucide="list-todo" class="w-4 h-4 mr-3 text-slate-600"></i>
+        Riwayat Pencarian
+      </button>
+
+      <div class="pt-4 px-3 py-2 text-[10px] font-semibold tracking-wider text-slate-600 uppercase">Data Hasil</div>
+
+      <button onclick="switchTab('records')" id="nav-records" class="nav-item flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100/60 transition">
+        <i data-lucide="database" class="w-4 h-4 mr-3 text-slate-600"></i>
+        Tabel Data
+      </button>
+
+      <button onclick="switchTab('map'); renderScrapedMap();" id="nav-map" class="nav-item flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100/60 transition">
+        <i data-lucide="map" class="w-4 h-4 mr-3 text-slate-600"></i>
+        Peta Interaktif
+      </button>
+    </nav>
+
+    <!-- Footer System Status -->
+    <div class="p-4 border-t border-slate-200 bg-slate-50/50">
+      <div class="flex items-center justify-between text-xs mb-1">
+        <span class="text-slate-600">Metode Update</span>
+        <span class="inline-flex items-center text-blue-600 font-medium">
+          <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i> Manual Refresh
+        </span>
+      </div>
+      <div class="text-[11px] text-slate-500 truncate" id="last-updated-footer">Update terakhir: Belum pernah</div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT AREA -->
+  <main class="flex-1 flex flex-col min-w-0 overflow-y-auto bg-slate-50">
+    
+    <!-- Top Bar -->
+    <header class="h-16 border-b border-slate-200 bg-white/95 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-20 shadow-xs">
+      <div class="flex items-center space-x-4 min-w-0">
+        <h2 id="page-title" class="font-bold text-base text-slate-800 whitespace-nowrap">Dashboard</h2>
+        <div class="h-5 w-[1px] bg-slate-200 hidden sm:block"></div>
+        <div class="flex items-center space-x-2 min-w-0">
+          <div class="relative flex items-center">
+            <div class="absolute left-3 pointer-events-none text-blue-600 flex items-center">
+              <i data-lucide="database" class="w-4 h-4"></i>
+            </div>
+            <select id="job-selector" onchange="onSelectJob(this.value)" class="appearance-none bg-slate-50 hover:bg-slate-100 text-slate-800 font-semibold text-xs pl-9 pr-8 py-2 rounded-lg border border-slate-300 hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none transition shadow-sm cursor-pointer max-w-[220px] md:max-w-md lg:max-w-lg truncate">
+              <option value="">Memuat riwayat pencarian...</option>
+            </select>
+            <div class="absolute right-2.5 pointer-events-none text-slate-400 flex items-center">
+              <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <!-- PROMINENT REFRESH BUTTON -->
+        <button id="btn-global-refresh" onclick="refreshAllData()" class="bg-white hover:bg-slate-100 text-blue-600 border border-slate-300 text-xs font-semibold px-4 py-2 rounded-lg flex items-center space-x-2 transition shadow">
+          <i data-lucide="refresh-cw" id="icon-refresh" class="w-4 h-4"></i>
+          <span id="label-refresh">↻ Refresh</span>
+        </button>
+
+        <!-- WIPE DATA BUTTON -->
+        <button onclick="wipeAllData()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center space-x-1.5 transition shadow">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+          <span>Wipe Data</span>
+        </button>
+
+        <button onclick="switchTab('new-job')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center space-x-2 transition shadow-lg shadow-blue-600/20">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>New Scraping Job</span>
+        </button>
+      </div>
+
+    </header>
+
+    <!-- TAB CONTENTS -->
+    <div class="p-6 space-y-6 flex-1">
+
+      <!-- ==================== DASHBOARD TAB ==================== -->
+      <div id="tab-dashboard" class="tab-content space-y-6">
+        
+        <!-- Global Metrics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-600">Total Data Ditemukan</p>
+              <h3 id="stat-total-records" class="text-2xl font-bold text-slate-900 mt-1">0</h3>
+              <p class="text-[11px] text-blue-600 mt-1 flex items-center">
+                <i data-lucide="file-text" class="w-3 h-3 mr-1"></i> Tersimpan di CSV
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+              <i data-lucide="layers" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-600">Toko Tervalidasi</p>
+              <h3 id="stat-valid-records" class="text-2xl font-bold text-slate-900 mt-1">0</h3>
+              <p class="text-[11px] text-emerald-600 mt-1 flex items-center">
+                <i data-lucide="check-circle-2" class="w-3 h-3 mr-1"></i> Alamat Terverifikasi
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+              <i data-lucide="check-square" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-600">Data Ganda Dihapus</p>
+              <h3 id="stat-duplicates" class="text-2xl font-bold text-slate-900 mt-1">0</h3>
+              <p class="text-[11px] text-amber-600 mt-1 flex items-center">
+                <i data-lucide="shield-check" class="w-3 h-3 mr-1"></i> Dibersihkan Otomatis
+              </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+              <i data-lucide="copy-check" class="w-6 h-6"></i>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 p-5 rounded-xl flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-600">Status File CSV</p>
+              <h3 id="stat-file-status" class="text-sm font-bold text-slate-900 mt-1 truncate">Mengecek...</h3>
+              <p id="stat-file-size" class="text-[11px] text-slate-600 mt-1">0 MB</p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+              <i data-lucide="file-spreadsheet" class="w-6 h-6"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- SCRAPING PROGRESS SECTION -->
+        <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-4 shadow-sm">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center space-x-3">
+                <h3 id="job-title" class="font-bold text-base text-slate-900">PROGRES PENCARIAN</h3>
+                <span id="job-status-badge" class="px-2.5 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">MENUNGGU</span>
+              </div>
+              <p id="job-subtitle" class="text-xs text-slate-600 mt-1">Menampilkan progres untuk pencarian yang sedang aktif atau yang terakhir dijalankan.</p>
+            </div>
+
+            <div class="flex items-center space-x-3">
+              <button onclick="refreshAllData()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center space-x-1.5 shadow">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                <span>Muat Ulang Progres</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Overall Progress Bar -->
+          <div class="space-y-1.5 pt-2">
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-slate-600 font-medium">Progres Keseluruhan</span>
+              <span id="job-progress-pct" class="text-blue-600 font-bold text-sm">0%</span>
+            </div>
+            <div class="w-full bg-slate-100 h-4 rounded-full overflow-hidden border border-slate-200 shadow-inner">
+              <div id="job-progress-bar" class="bg-gradient-to-r from-blue-600 to-blue-400 h-full transition-all duration-300 w-0 relative">
+                <div class="absolute inset-0 bg-white/20 w-full h-full animate-[shimmer_2s_infinite]"></div>
+              </div>
+            </div>
+            <div class="flex justify-between text-[11px] text-slate-500 font-mono">
+              <span id="job-records-count">0 / 0 data</span>
+              <span id="job-last-refreshed">Terakhir update: Belum pernah</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== ITERATION CONTROL CENTER ==================== -->
+        <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-4 shadow-sm">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+            <div>
+              <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+                <i data-lucide="activity" class="w-4 h-4 text-blue-600"></i> Sesi Pencarian (Iterasi)
+              </h3>
+              <p class="text-xs text-slate-600 mt-1">Pantau dan jalankan sesi pencarian untuk mendapatkan data secara bertahap.</p>
+            </div>
+            
+            <div id="iteration-actions" class="flex items-center space-x-2">
+              <button onclick="showStartIterationModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition shadow">
+                <i data-lucide="play" class="w-3.5 h-3.5"></i> <span>Mulai Pencarian</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Active Iteration Monitor -->
+            <div class="col-span-1 border border-slate-200 bg-slate-50 rounded-xl p-5 shadow-sm">
+              <h4 class="text-sm font-semibold text-slate-800 mb-3 border-b border-slate-200 pb-2">Status Saat Ini</h4>
+              <div id="active-iteration-monitor" class="text-xs text-slate-600 space-y-3">
+                <div class="text-center py-6 text-slate-500 italic">Belum ada sesi yang berjalan.</div>
+              </div>
+            </div>
+
+            <!-- Iterations Timeline -->
+            <div class="col-span-1 lg:col-span-2 border border-slate-200 bg-slate-50 rounded-xl p-5 shadow-sm">
+              <h4 class="text-sm font-semibold text-slate-800 mb-3 border-b border-slate-200 pb-2">Riwayat Sesi</h4>
+              <div id="iteration-timeline" class="space-y-3 max-h-60 overflow-y-auto pr-2">
+                 <div class="text-center py-6 text-[11px] text-slate-500 italic">Belum ada riwayat sesi.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5 WORKER PROGRESS CARDS (HIDDEN - TECHNICAL DETAIL) -->
+        <div class="hidden space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-base text-slate-900">Status Proses Pencarian Paralel</h3>
+            <span class="text-xs text-slate-600 font-mono">Pencarian berjalan bersamaan di latar belakang</span>
+          </div>
+
+          <div id="workers-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- 5 Worker Cards Render Here -->
+          </div>
+        </div>
+
+        <!-- Interactive Map Visualizer & Scraped Preview -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-3 flex flex-col">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-sm text-slate-900">Peta Sebaran Toko</h4>
+              <span id="map-counter" class="text-xs text-slate-600 font-mono">0 titik</span>
+            </div>
+            <div id="map" class="w-full h-80 rounded-lg border border-slate-200 bg-slate-100 flex-1 z-0"></div>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-xl p-5 space-y-3 flex flex-col">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-sm text-slate-900">Cuplikan Data Terbaru</h4>
+              <button onclick="switchTab('records')" class="text-xs text-blue-600 hover:underline">Lihat Tabel Lengkap &rarr;</button>
+            </div>
+
+            <div class="overflow-x-auto flex-1">
+              <table class="w-full text-left text-xs border-collapse font-mono">
+                <thead>
+                  <tr class="border-b border-slate-200 text-slate-600 bg-slate-50/60">
+                    <th class="p-2">Nama Toko</th>
+                    <th class="p-2">Kota / Daerah</th>
+                    <th class="p-2 text-right">Rating</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboard-latest-records" class="divide-y divide-slate-200/60 text-slate-700 text-[11px]">
+                  <tr><td colspan="3" class="p-4 text-center text-slate-500">Menunggu data...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== NEW JOB WIZARD TAB ==================== -->
+      <div id="tab-new-job" class="tab-content hidden space-y-6">
+        
+        <div class="bg-white border border-slate-200 rounded-xl p-6 max-w-4xl mx-auto space-y-6">
+          <div>
+            <h3 class="font-bold text-xl text-slate-900">Create New Scraping Job</h3>
+            <p class="text-xs text-slate-600 mt-1">Configure target queries, multi-region location, and 5 parallel workers.</p>
+          </div>
+
+          <form id="form-create-job" onsubmit="handleCreateJob(event)" class="space-y-6">
+            <input type="hidden" id="input-target" value="toko bangunan, supplier semen, semen">
+            <input type="hidden" id="input-workers" value="5">
+            <input type="hidden" id="select-headless" value="true">
+            <input type="hidden" id="select-country" value="Indonesia">
+
+            <div class="border border-slate-200 bg-slate-50/50 p-5 rounded-xl space-y-4">
+              <label class="block text-xs font-bold uppercase tracking-wider text-blue-600">1. Pilih Wilayah Pencarian</label>
+              <p class="text-xs text-slate-500">Pilih provinsi, kota/kabupaten, dan kecamatan target untuk mencari toko bangunan/material.</p>
+              
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label class="block text-xs text-slate-600 mb-1 font-medium">Provinsi</label>
+                  <div class="relative w-full">
+                    <input type="text" id="select-province" placeholder="Cari provinsi..." autocomplete="off" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <div id="dropdown-province" class="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-xl max-h-48 overflow-y-auto hidden"></div>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-600 mb-1 font-medium">Kota / Kabupaten</label>
+                  <div class="relative w-full">
+                    <input type="text" id="select-city" placeholder="Pilih provinsi dahulu..." autocomplete="off" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" disabled>
+                    <div id="dropdown-city" class="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-xl max-h-48 overflow-y-auto hidden"></div>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-600 mb-1 font-medium">Kecamatan</label>
+                  <div class="relative w-full">
+                    <input type="text" id="select-district" placeholder="Pilih kota dahulu..." autocomplete="off" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" disabled>
+                    <div id="dropdown-district" class="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-xl max-h-48 overflow-y-auto hidden"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pt-2">
+                <label class="block text-xs text-slate-600 mb-1">Atau Ketik Lokasi Bebas (Opsional)</label>
+                <input type="text" id="input-custom-location" placeholder="Contoh: Jalan Raya Darmo, Surabaya" class="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-sm text-slate-800">
+              </div>
+            </div>
+
+            <div class="border border-slate-200 bg-slate-50/50 p-5 rounded-xl space-y-4">
+              <label class="block text-xs font-bold uppercase tracking-wider text-blue-600">2. Target Jumlah Data</label>
+              <div>
+                <label class="block text-xs text-slate-600 mb-1 font-medium">Batas Maksimal Toko</label>
+                <input type="number" id="input-target-records" min="1" value="5000" class="w-full md:w-1/2 bg-white border border-slate-300 rounded-lg px-4 py-2 text-sm font-mono text-slate-800 focus:outline-none focus:border-blue-500">
+                <p class="text-[11px] text-slate-500 mt-1.5">Proses pencarian akan otomatis berhenti jika sudah mencapai batas ini.</p>
+              </div>
+            </div>
+
+            <div class="border border-slate-200 bg-slate-50/50 p-5 rounded-xl space-y-3">
+              <div class="flex justify-between items-center">
+                <label class="block text-xs font-bold uppercase tracking-wider text-blue-600">3. Kata Kunci Spesifik (Opsional)</label>
+                <button type="button" onclick="generateQueries()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded flex items-center shadow">
+                  <i data-lucide="wand-2" class="w-3.5 h-3.5 mr-1.5"></i>
+                  Isi Otomatis
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500 mb-2">Biarkan kosong jika ingin sistem mencari secara otomatis di wilayah tersebut. Atau masukkan kata kunci sendiri, satu kata kunci per baris.</p>
+              <textarea id="input-queries" rows="3" class="w-full bg-white border border-slate-300 rounded-lg p-3 text-sm font-mono text-slate-800" placeholder="(Sistem akan mencari secara otomatis jika dikosongkan)"></textarea>
+            </div>
+
+            <div class="flex items-center justify-end space-x-4 pt-4 border-t border-slate-200">
+              <button type="button" onclick="switchTab('dashboard')" class="px-5 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-800">Batal</button>
+              <button type="submit" id="btn-submit-job" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-6 py-2.5 rounded-lg shadow-lg shadow-blue-600/30 flex items-center space-x-2">
+                <i data-lucide="play" class="w-4 h-4"></i>
+                <span>MULAI PENCARIAN</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- ==================== SCRAPING JOBS TAB ==================== -->
+      <div id="tab-jobs" class="tab-content hidden space-y-6">
+        <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-base text-slate-900">Riwayat Pencarian</h3>
+              <p class="text-xs text-slate-600">Daftar semua pencarian yang sedang berjalan, selesai, atau dihentikan</p>
+            </div>
+            <button onclick="fetchJobs()" class="text-xs bg-white hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md border border-slate-300 flex items-center space-x-1.5 shadow-sm">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+              <span>Muat Ulang</span>
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-b border-slate-200 text-slate-600 bg-slate-50/50">
+                  <th class="p-3">Nama Pencarian</th>
+                  <th class="p-3">Lokasi</th>
+                  <th class="p-3">Kata Kunci</th>
+                  <th class="p-3">Progres</th>
+                  <th class="p-3">Status</th>
+                  <th class="p-3 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="jobs-table-body" class="divide-y divide-slate-200 text-slate-700">
+                <!-- Jobs Render Here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== PRESETS CATALOG TAB ==================== -->
+      <div id="tab-presets" class="tab-content hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="font-bold text-lg text-slate-900">Scraping Presets Catalog</h3>
+            <p class="text-xs text-slate-600">Pre-configured scraping targets for fast deployment</p>
+          </div>
+        </div>
+        <div id="presets-grid" class="grid grid-cols-1 md:grid-cols-3 gap-5"></div>
+      </div>
+
+      <!-- ==================== SCRAPER RECORDS TAB ==================== -->
+      <div id="tab-records" class="tab-content hidden space-y-6">
+        
+        <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 class="font-bold text-base text-slate-900">Data Hasil Pencarian</h3>
+              <p class="text-xs text-slate-600" id="records-file-metadata">Sumber: Mengecek...</p>
+            </div>
+
+            <!-- Controls & Refresh -->
+            <div class="flex flex-wrap items-center gap-3">
+              <select id="filter-worker" onchange="fetchCurrentRecords()" class="hidden bg-slate-50 border border-slate-300 text-xs px-3 py-2 rounded-lg text-slate-800">
+                <option value="0">All Scraper Workers</option>
+              </select>
+
+              <input type="text" id="records-search" onkeydown="if(event.key==='Enter') fetchCurrentRecords()" placeholder="Cari nama toko, alamat..." class="bg-slate-50 border border-slate-300 text-xs px-3 py-2 rounded-lg text-slate-800 w-52">
+              
+              <!-- MANUAL REFRESH RECORDS BUTTON -->
+              <button onclick="fetchCurrentRecords()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center space-x-1.5 shadow">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                <span>Muat Ulang</span>
+              </button>
+
+              <!-- DOWNLOAD CURRENT REGION -->
+              <button onclick="exportCurrentJob('csv')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center space-x-1.5 shadow" title="Download data untuk pencarian yang sedang aktif">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>Download CSV (Pencarian Ini)</span>
+              </button>
+
+              <!-- DOWNLOAD ALL DATA -->
+              <button onclick="exportAllData('csv')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center space-x-1.5 shadow" title="Download gabungan seluruh data dari semua daerah">
+                <i data-lucide="archive" class="w-3.5 h-3.5"></i>
+                <span>Download Semua Data</span>
+              </button>
+
+              <button onclick="wipeAllData()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center space-x-1.5 transition shadow">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                <span>Hapus Semua</span>
+              </button>
+            </div>
+          </div>
+
+
+          <!-- DIAGNOSTIC BANNER IF MISSING/EMPTY -->
+          <div id="diagnostic-banner" class="hidden p-4 rounded-lg bg-amber-50 border border-amber-500/30 text-amber-600 text-xs space-y-1">
+            <div class="font-bold flex items-center"><i data-lucide="info" class="w-4 h-4 mr-1.5"></i> Info Data</div>
+            <div id="diagnostic-text">Data masih kosong atau sedang diproses.</div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse font-mono">
+              <thead>
+                <tr class="border-b border-slate-200 text-slate-600 bg-slate-50/50">
+                  <th class="p-3">Nama Toko</th>
+                  <th class="p-3">Alamat</th>
+                  <th class="p-3">Kota / Kec.</th>
+                  <th class="p-3">Rating</th>
+                  <th class="p-3">No. HP</th>
+                  <th class="p-3 text-right">Detail</th>
+                </tr>
+              </thead>
+              <tbody id="records-table-body" class="divide-y divide-slate-200 text-slate-700 text-[11px]">
+                <tr><td colspan="6" class="p-6 text-center text-slate-500">Klik Muat Ulang untuk menampilkan data.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-slate-600 pt-2">
+            <span id="records-counter-label">Showing 0 records</span>
+            <div class="space-x-2 flex items-center">
+              <button onclick="changeRecordsPage(-1)" class="bg-white hover:bg-slate-100 px-3 py-1 rounded border border-slate-300 text-slate-800">Previous</button>
+              <span id="records-page-num" class="font-mono text-blue-600">Page 1 of 1</span>
+              <button onclick="changeRecordsPage(1)" class="bg-white hover:bg-slate-100 px-3 py-1 rounded border border-slate-300 text-slate-800">Next</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== LOGS VIEWER TAB ==================== -->
+      <div id="tab-logs" class="tab-content hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-lg text-slate-900">Logs Viewer</h3>
+          <button onclick="clearLogs()" class="bg-white hover:bg-slate-100 text-slate-700 text-xs px-3 py-1.5 rounded-md border border-slate-300">Clear Logs</button>
+        </div>
+        <div class="bg-slate-100 border border-slate-200 rounded-xl p-4 font-mono text-xs text-slate-700 h-[500px] overflow-y-auto space-y-1 shadow-inner" id="log-terminal">
+          <div class="text-slate-500">[SYSTEM] Logs panel ready. Click Refresh to update.</div>
+        </div>
+      </div>
+
+      <!-- ==================== RESOURCE MONITOR TAB ==================== -->
+      <div id="tab-system" class="tab-content hidden space-y-6">
+        <div class="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
+          <h3 class="font-bold text-lg text-slate-900">System & Resource Monitor</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-slate-50/60 border border-slate-200 p-5 rounded-xl space-y-2">
+              <span class="text-xs text-slate-600">Memory Allocation (Go Runtime)</span>
+              <h4 id="sys-mem-alloc" class="text-3xl font-bold text-blue-600">0 MB</h4>
+            </div>
+            <div class="bg-slate-50/60 border border-slate-200 p-5 rounded-xl space-y-2">
+              <span class="text-xs text-slate-600">Active Goroutines</span>
+              <h4 id="sys-goroutines" class="text-3xl font-bold text-indigo-600">0</h4>
+            </div>
+            <div class="bg-slate-50/60 border border-slate-200 p-5 rounded-xl space-y-2">
+              <span class="text-xs text-slate-600">5-Worker Parallel Engine</span>
+              <h4 class="text-3xl font-bold text-emerald-600">READY</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== MAP TAB ==================== -->
+      <div id="tab-map" class="tab-content hidden h-full flex flex-col space-y-4">        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
+          <!-- Filters Panel -->
+          <div class="w-full lg:w-80 flex-shrink-0 bg-white border border-slate-200 rounded-xl p-5 flex flex-col lg:h-full max-h-[50vh] lg:max-h-none overflow-y-auto space-y-4 relative z-10">
+            <h3 class="font-bold text-sm text-slate-900 flex items-center mb-2">
+              <i data-lucide="filter" class="w-4 h-4 mr-2 text-blue-600"></i> Map Filters
+            </h3>
+
+            <!-- Search -->
+            <div class="space-y-1.5 relative">
+              <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Search</label>
+              <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-500"></i>
+                <input type="text" id="map-search" placeholder="Name, address, place ID..." class="w-full bg-slate-100 border border-slate-300 rounded-lg py-2 pl-9 pr-3 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+              </div>
+            </div>
+            
+            <!-- Job Selector -->
+            <div class="space-y-1.5 relative">
+              <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Scraping Job</label>
+              <select id="map-job-select" class="w-full bg-slate-100 border border-slate-300 rounded-lg py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none cursor-pointer">
+                <option value="all">All Jobs</option>
+              </select>
+            </div>
+
+            <!-- Province -->
+            <div class="space-y-1.5 relative">
+              <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Province</label>
+              <select id="map-province" class="w-full bg-slate-100 border border-slate-300 rounded-lg py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none cursor-pointer">
+                <option value="">All Provinces</option>
+              </select>
+            </div>
+
+            <!-- City -->
+            <div class="space-y-1.5 relative">
+              <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">City / Kabupaten</label>
+              <select id="map-city" class="w-full bg-slate-100 border border-slate-300 rounded-lg py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none cursor-pointer" disabled>
+                <option value="">All Cities</option>
+              </select>
+            </div>
+
+            <!-- Kecamatan -->
+            <div class="space-y-1.5 relative">
+              <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Kecamatan</label>
+              <select id="map-district" class="w-full bg-slate-100 border border-slate-300 rounded-lg py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none cursor-pointer" disabled>
+                <option value="">All Kecamatan</option>
+              </select>
+            </div>
+
+            <!-- Business Type -->
+            <div class="space-y-1.5 relative">
+              <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Business Type</label>
+              <select id="map-type" class="w-full bg-slate-100 border border-slate-300 rounded-lg py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none cursor-pointer">
+                <option value="">All Types</option>
+              </select>
+            </div>
+
+            <!-- Rating -->
+            <div class="space-y-1.5 relative">
+              <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Minimum Rating</label>
+              <select id="map-rating" class="w-full bg-slate-100 border border-slate-300 rounded-lg py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none cursor-pointer">
+                <option value="0">All Ratings</option>
+                <option value="4.5">4.5+</option>
+                <option value="4.0">4.0+</option>
+                <option value="3.5">3.5+</option>
+                <option value="3.0">3.0+</option>
+              </select>
+            </div>
+
+            <div class="flex-1"></div>
+
+            <div class="pt-4 border-t border-slate-200 space-y-3">
+              <div class="flex justify-between items-center text-xs text-slate-600">
+                <span>Showing:</span>
+                <span id="map-results-count" class="font-bold text-blue-600 font-mono">0 locations</span>
+              </div>
+              <button onclick="clearMapFilters()" class="w-full bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold py-2 rounded-lg transition border border-slate-300 flex items-center justify-center">
+                <i data-lucide="x-circle" class="w-4 h-4 mr-2"></i> Clear Filters
+              </button>
+            </div>
+            
+            <div id="map-missing-coords" class="text-[10px] text-amber-500/80 bg-amber-50 p-2 rounded border border-amber-200 text-center hidden">
+              0 records missing coordinates (not shown)
+            </div>
+
+          </div>
+
+          <!-- Map View -->
+          <div class="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden relative z-0 flex flex-col">
+            <div id="map-loading" class="absolute inset-0 bg-dark-900/80 backdrop-blur-sm z-[1000] flex flex-col items-center justify-center hidden">
+              <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <p class="mt-4 text-blue-600 text-sm font-semibold animate-pulse">Loading Map Data...</p>
+            </div>
+            <div id="map-error" class="absolute inset-0 bg-dark-900/90 backdrop-blur-sm z-[1000] flex flex-col items-center justify-center hidden">
+              <i data-lucide="alert-triangle" class="w-12 h-12 text-rose-500 mb-4"></i>
+              <p class="text-rose-600 text-sm font-semibold">Failed to load locations.</p>
+              <button onclick="fetchMapData()" class="mt-4 bg-white px-4 py-2 rounded text-xs text-white hover:bg-slate-100 border border-slate-300">Try Again</button>
+            </div>
+            <div id="map-empty" class="absolute inset-0 bg-dark-900/90 backdrop-blur-sm z-[1000] flex flex-col items-center justify-center hidden">
+              <i data-lucide="map-pin-off" class="w-12 h-12 text-slate-500 mb-4"></i>
+              <p class="text-slate-600 text-sm font-semibold">No locations found for the selected filters.</p>
+            </div>
+
+            <div id="scraped-map" class="w-full h-full flex-1 relative z-0"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- RECORD DETAIL MODAL DRAWER -->
+  <div id="modal-detail" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex justify-end">
+    <div class="bg-white border-l border-slate-200 w-full max-w-lg h-full p-6 overflow-y-auto space-y-6 flex flex-col shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-4">
+        <h3 id="modal-title" class="font-bold text-lg text-slate-900 truncate">Detail Toko</h3>
+        <button onclick="closeModal()" class="text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div id="modal-body" class="space-y-4 text-xs font-mono text-slate-700 flex-1"></div>
+      <div class="pt-4 border-t border-slate-200 flex justify-end">
+        <button onclick="closeModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-xs font-semibold shadow transition">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- START ITERATION MODAL -->
+  <div id="modal-start-iteration" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 w-full max-w-md rounded-xl p-6 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-lg text-slate-900 flex items-center gap-2">
+          <i data-lucide="play-circle" class="w-5 h-5 text-blue-600"></i> Mulai Pencarian
+        </h3>
+        <button onclick="document.getElementById('modal-start-iteration').classList.add('hidden')" class="text-slate-600 hover:text-slate-900"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      
+      <div class="space-y-4 text-sm text-slate-700">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Target Jumlah Data (Toko Baru)</label>
+          <p class="text-[11px] text-slate-500 mb-2">Batas jumlah toko baru yang akan dikumpulkan pada sesi ini. Sistem otomatis berhenti tepat saat target tercapai.</p>
+          <input type="number" id="iter-target-stores" min="1" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-slate-800 font-mono text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="Contoh: 50">
+        </div>
+      </div>
+      
+      <div class="pt-4 border-t border-slate-200 flex justify-end gap-3">
+        <button onclick="document.getElementById('modal-start-iteration').classList.add('hidden')" class="bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 px-4 py-2 rounded-lg text-xs font-semibold transition shadow-sm">Batal</button>
+        <button onclick="submitStartIteration()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-xs font-semibold shadow transition">Mulai</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DELETE SINGLE JOB MODAL -->
+  <div id="modal-delete-job" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 w-full max-w-md rounded-xl p-6 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-lg text-slate-900 flex items-center gap-2">
+          <i data-lucide="trash-2" class="w-5 h-5 text-rose-600"></i> Hapus Riwayat Job
+        </h3>
+        <button onclick="closeDeleteJobModal()" class="text-slate-500 hover:text-slate-800"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs flex items-start gap-2.5">
+        <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+        <span>Hanya job ini dan file export/checkpoint miliknya yang akan dihapus. Riwayat job lain dan database toko tetap aman.</span>
+      </div>
+
+      <div class="space-y-2 text-xs bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+        <div class="flex justify-between py-1 border-b border-slate-200/60">
+          <span class="text-slate-500">Nama Job:</span>
+          <span id="del-job-title" class="font-semibold text-slate-800 truncate max-w-[200px]">-</span>
+        </div>
+        <div class="flex justify-between py-1 border-b border-slate-200/60">
+          <span class="text-slate-500">Job ID:</span>
+          <span id="del-job-id" class="font-mono text-slate-700">-</span>
+        </div>
+        <div class="flex justify-between py-1 border-b border-slate-200/60">
+          <span class="text-slate-500">Lokasi:</span>
+          <span id="del-job-location" class="font-medium text-slate-800">-</span>
+        </div>
+        <div class="flex justify-between py-1">
+          <span class="text-slate-500">Jumlah Data:</span>
+          <span id="del-job-records" class="font-mono font-semibold text-blue-600">-</span>
+        </div>
+      </div>
+
+      <input type="hidden" id="del-job-id-target" value="">
+
+      <div class="pt-3 border-t border-slate-200 flex justify-end gap-3">
+        <button onclick="closeDeleteJobModal()" class="bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-xs font-semibold transition shadow-sm">Batal</button>
+        <button id="btn-confirm-delete-job" onclick="confirmDeleteJob()" class="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 rounded-lg text-xs font-semibold shadow transition flex items-center gap-1.5">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+          <span>Hapus Job Ini</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIPE ALL DATA DEDICATED MODAL -->
+  <div id="modal-wipe-all" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white border-2 border-rose-300 w-full max-w-md rounded-xl p-6 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-lg text-rose-700 flex items-center gap-2">
+          <i data-lucide="alert-octagon" class="w-6 h-6 text-rose-600"></i> Hapus Seluruh Data (Wipe All)
+        </h3>
+        <button onclick="closeWipeAllModal()" class="text-slate-500 hover:text-slate-800"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs space-y-2">
+        <p class="font-semibold flex items-center gap-1.5 text-rose-900">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 shrink-0"></i>
+          PERINGATAN SANGAT TINGGI (DESTRUCTIVE):
+        </p>
+        <p>Tindakan ini akan mengosongkan <strong>SELURUH riwayat job</strong>, seluruh file checkpoint, dan file CSV export untuk memulai sistem dari kondisi bersih (clean slate).</p>
+      </div>
+
+      <div class="pt-3 border-t border-slate-200 flex justify-end gap-3">
+        <button onclick="closeWipeAllModal()" class="bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-xs font-semibold transition shadow-sm">Batal</button>
+        <button id="btn-confirm-wipe-all" onclick="confirmWipeAll()" class="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 rounded-lg text-xs font-semibold shadow transition flex items-center gap-1.5">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+          <span>Ya, Hapus Semua Data</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+  <script>
+    let activeTab = 'dashboard';
+    let jobs = [];
+    let presets = [];
+    let currentJob = null;
+    let currentRecordsResp = { total: 0, page: 1, total_pages: 1, records: [] };
+    let currentPage = 1;
+    let map = null;
+    let markersGroup = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      initMap();
+      refreshAllData();
+      initSSE();
+      initLocationDropdowns();
+    });
+
+    function initMap() {
+      map = L.map('map').setView([-7.2575, 112.7521], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+      markersGroup = L.layerGroup().addTo(map);
+    }
+
+    // UI State Management
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => {
+        el.classList.add('hidden');
+        el.classList.remove('active');
+      });
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.classList.remove('active', 'bg-slate-100', 'text-slate-900', 'bg-white', 'text-white');
+        el.classList.add('text-slate-600');
+        const icon = el.querySelector('i, svg');
+        if (icon) {
+          icon.classList.remove('text-blue-600');
+          icon.classList.add('text-slate-600');
+        }
+      });
+
+      const targetTab = document.getElementById(`tab-${tabId}`);
+      if (targetTab) {
+        targetTab.classList.remove('hidden');
+        targetTab.classList.add('active');
+      }
+
+      const navBtn = document.getElementById(`nav-${tabId}`);
+      if (navBtn) {
+        navBtn.classList.add('active', 'bg-slate-100', 'text-slate-900');
+        navBtn.classList.remove('text-slate-600', 'text-white');
+        const icon = navBtn.querySelector('i, svg');
+        if (icon) {
+          icon.classList.add('text-blue-600');
+          icon.classList.remove('text-slate-600');
+        }
+      }
+
+      const titles = {
+        'dashboard': 'Scraping Dashboard',
+        'new-job': 'New Job Setup Wizard',
+        'jobs': 'Scraping Jobs Management',
+        'presets': 'Saved Presets Catalog',
+        'records': 'Scraper Records Explorer',
+        'logs': 'Logs Viewer',
+        'system': 'System Resource Monitor',
+        'map': 'Scraped Locations Map'
+      };
+      document.getElementById('page-title').innerText = titles[tabId] || 'Control Center';
+
+      if (tabId === 'dashboard' && map) {
+        setTimeout(() => map.invalidateSize(), 200);
+      }
+      if (tabId === 'jobs') {
+        renderJobsTable();
+      }
+      if (tabId === 'presets') {
+        renderPresets();
+      }
+      if (tabId === 'records') {
+        fetchCurrentRecords();
+      }
+    }
+
+    // MAIN MANUAL REFRESH FUNCTION
+    async function refreshAllData() {
+      const btnLabel = document.getElementById('label-refresh');
+      if (btnLabel) btnLabel.innerText = '⟳ Refreshing...';
+
+      await fetchJobs();
+      await fetchPresets();
+      await fetchMetrics();
+      await fetchCurrentRecords();
+
+      const timeStr = new Date().toLocaleTimeString();
+      if (btnLabel) btnLabel.innerText = '↻ Refresh';
+      document.getElementById('last-updated-footer').innerText = `Last updated: ${timeStr}`;
+      document.getElementById('job-last-refreshed').innerText = `Last updated: ${timeStr}`;
+    }
+
+    function onSelectJob(jobId) {
+      if (!jobId || !jobs || jobs.length === 0) return;
+      const selected = jobs.find(j => j.config.id === jobId);
+      if (selected) {
+        currentJob = selected;
+        renderGlobalJobCard(selected);
+        if (typeof renderIterationUI === 'function') renderIterationUI(selected);
+        render5WorkersCards(selected.workers || [], selected.config.workers || 5);
+        if (typeof fetchCurrentRecords === 'function') fetchCurrentRecords();
+      }
+    }
+
+    function updateJobSelectorDropdown() {
+      const select = document.getElementById('job-selector');
+      if (!select) return;
+      if (!jobs || jobs.length === 0) {
+        select.innerHTML = '<option value="">Belum ada riwayat pencarian</option>';
+        return;
+      }
+      const currentId = (currentJob && currentJob.config) ? currentJob.config.id : '';
+      select.innerHTML = jobs.map(j => {
+        if (!j || !j.config) return '';
+        const isSel = j.config.id === currentId ? 'selected' : '';
+        const loc = (j.config.location && (j.config.location.city || j.config.location.custom_location || j.config.location.province)) || 'Indonesia';
+        let displayTitle = j.config.title || 'Scraping Job';
+        if (displayTitle.length > 40) displayTitle = displayTitle.substring(0, 37) + '...';
+        return `<option value="${j.config.id}" ${isSel}>${displayTitle} • ${loc} [${j.status || 'QUEUED'}]</option>`;
+      }).join('');
+    }
+
+    async function fetchJobs() {
+      try {
+        const res = await fetch('/api/jobs');
+        if (!res.ok) return;
+        jobs = await res.json() || [];
+        updateJobSelectorDropdown();
+        
+        let target = null;
+        if (currentJob && currentJob.config) {
+          target = jobs.find(j => j.config && j.config.id === currentJob.config.id);
+        }
+        if (!target && jobs.length > 0) {
+          target = jobs.find(j => j.status === 'RUNNING' || j.status === 'PAUSED') || jobs[0];
+        }
+
+        currentJob = target || null;
+        renderGlobalJobCard(currentJob);
+
+        if (currentJob) {
+          if (typeof renderIterationUI === 'function') renderIterationUI(currentJob);
+          render5WorkersCards(currentJob.workers || [], (currentJob.config && currentJob.config.workers) || 5);
+          
+          // Populate historical logs if terminal is empty/placeholder
+          const terminal = document.getElementById("log-terminal");
+          if (terminal && terminal.innerHTML.includes("[SYSTEM] Logs panel ready")) {
+            if (currentJob.logs && currentJob.logs.length > 0) {
+              terminal.innerHTML = "";
+              const slice = currentJob.logs.slice(-500);
+              slice.forEach(payload => {
+                const ts = payload.timestamp || payload.Timestamp || '00:00:00';
+                const lvl = (payload.level || payload.Level || 'INFO').toUpperCase();
+                const msg = payload.message || payload.Message || '';
+                const logLine = document.createElement("div");
+                const color = lvl === "ERROR" ? "text-rose-600" : (lvl === "WARN" ? "text-amber-600" : "text-slate-700");
+                logLine.className = color;
+                logLine.innerText = `[${ts}] [${lvl}] ${msg}`;
+                terminal.appendChild(logLine);
+              });
+              terminal.scrollTop = terminal.scrollHeight;
+            }
+          }
+        } else {
+          render5WorkersCards([], 5);
+        }
+
+        renderJobsTable();
+      } catch (err) {
+        console.error("fetchJobs error:", err);
+      }
+    }
+
+    async function fetchPresets() {
+      try {
+        const res = await fetch('/api/presets');
+        if (!res.ok) return;
+        presets = await res.json() || [];
+        renderPresets();
+      } catch (err) {}
+    }
+
+    async function fetchMetrics() {
+      try {
+        const res = await fetch('/api/system/metrics');
+        if (!res.ok) return;
+        const metrics = await res.json();
+        const memAlloc = document.getElementById('sys-mem-alloc');
+        const goroutines = document.getElementById('sys-goroutines');
+        if (memAlloc && typeof metrics.mem_alloc_mb === 'number') {
+          memAlloc.innerText = `${metrics.mem_alloc_mb.toFixed(1)} MB`;
+        }
+        if (goroutines && metrics.goroutines !== undefined) {
+          goroutines.innerText = metrics.goroutines;
+        }
+      } catch (err) {}
+    }
+
+    async function fetchCurrentRecords() {
+      const activeJob = currentJob || (jobs && jobs.length > 0 ? jobs[0] : null);
+      if (!activeJob || !activeJob.config || !activeJob.config.id) {
+        currentRecordsResp = { total: 0, page: 1, total_pages: 1, records: [], diagnostic: 'Belum ada data pencarian.' };
+        renderRecordsTable();
+        renderDashboardLatestRecords();
+        updateMapMarkers([]);
+        updateHeaderStats();
+        return;
+      }
+      const jobId = activeJob.config.id;
+      const searchEl = document.getElementById('records-search');
+      const workerEl = document.getElementById('filter-worker');
+      const search = searchEl ? searchEl.value : '';
+      const worker = workerEl ? workerEl.value : '';
+
+      try {
+        const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/records?page=${currentPage}&limit=50&search=${encodeURIComponent(search)}&worker=${encodeURIComponent(worker)}`);
+        if (!res.ok) return;
+        currentRecordsResp = await res.json();
+        renderRecordsTable();
+        renderDashboardLatestRecords();
+        updateMapMarkers(currentRecordsResp.records || []);
+        updateHeaderStats();
+      } catch (err) {}
+    }
+
+    function updateHeaderStats() {
+      const resp = currentRecordsResp || { total: 0, page: 1, total_pages: 1, records: [] };
+      const totalEl = document.getElementById('stat-total-records');
+      const validEl = document.getElementById('stat-valid-records');
+      const dupEl = document.getElementById('stat-duplicates');
+      const fileStat = document.getElementById('stat-file-status');
+      const sizeStat = document.getElementById('stat-file-size');
+
+      if (totalEl) totalEl.innerText = resp.total ? resp.total.toLocaleString() : '0';
+      if (validEl) validEl.innerText = resp.total ? resp.total.toLocaleString() : '0';
+      if (dupEl) dupEl.innerText = (currentJob && currentJob.stats && currentJob.stats.duplicates) || 0;
+
+      if (fileStat && sizeStat) {
+        if (resp.file_exists) {
+          fileStat.innerText = 'CSV File Loaded';
+          fileStat.className = 'text-xs font-bold text-emerald-600 truncate mt-1';
+          sizeStat.innerText = `${resp.file_size_mb ? resp.file_size_mb.toFixed(2) : 0} MB • ${resp.output_file || ''}`;
+        } else {
+          fileStat.innerText = 'No File Found';
+          fileStat.className = 'text-xs font-bold text-amber-600 truncate mt-1';
+          sizeStat.innerText = resp.diagnostic || 'CSV not generated yet';
+        }
+      }
+
+      // Diagnostic banner
+      const banner = document.getElementById('diagnostic-banner');
+      const diagText = document.getElementById('diagnostic-text');
+      const metaEl = document.getElementById('records-file-metadata');
+      if (metaEl) {
+        metaEl.innerText = `Source CSV Path: ${resp.output_file || 'Searching...'} (${resp.file_size_mb ? resp.file_size_mb.toFixed(2) : 0} MB)`;
+      }
+
+      if (banner && diagText) {
+        if (resp.diagnostic || !resp.file_exists) {
+          banner.classList.remove('hidden');
+          diagText.innerText = resp.diagnostic || `CSV File Path: ${resp.output_file} (Exists: ${resp.file_exists})`;
+        } else {
+          banner.classList.add('hidden');
+        }
+      }
+    }
+
+    function renderGlobalJobCard(job) {
+      const indicator = document.getElementById('active-job-indicator');
+      const selector = document.getElementById('job-selector');
+      const jobTitle = document.getElementById('job-title');
+      const jobSubtitle = document.getElementById('job-subtitle');
+      const badge = document.getElementById('job-status-badge');
+      const progressPct = document.getElementById('job-progress-pct');
+      const progressBar = document.getElementById('job-progress-bar');
+      const recordsCount = document.getElementById('job-records-count');
+
+      if (!job || !job.config) {
+        if (indicator) indicator.innerText = 'Tidak ada job aktif';
+        if (selector) selector.value = '';
+        if (jobTitle) jobTitle.innerText = 'PROGRES PENCARIAN';
+        if (jobSubtitle) jobSubtitle.innerText = 'Belum ada riwayat pencarian aktif. Buat job baru untuk memulai.';
+        if (badge) {
+          badge.innerText = 'MENUNGGU';
+          badge.className = 'px-2.5 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200';
+        }
+        if (progressPct) progressPct.innerText = '0%';
+        if (progressBar) progressBar.style.width = '0%';
+        if (recordsCount) recordsCount.innerText = '0 records';
+        return;
+      }
+
+      const title = job.config.title || 'Scraping Job';
+      const loc = (job.config.location && (job.config.location.city || job.config.location.custom_location || job.config.location.province)) || 'Multi-Region';
+      const target = job.config.target || '-';
+      const status = job.status || 'MENUNGGU';
+      const progress = typeof job.progress === 'number' ? job.progress : 0;
+      const targetCount = (job.target_count || job.config.target_records || 0).toLocaleString();
+      const workers = job.config.workers || 5;
+
+      if (indicator) indicator.innerText = `${title} (${status})`;
+      if (selector && selector.value !== job.config.id) {
+        selector.value = job.config.id;
+      }
+      if (jobTitle) jobTitle.innerText = title;
+      if (jobSubtitle) jobSubtitle.innerText = `Target: ${target} • Lokasi: ${loc}`;
+      if (badge) {
+        badge.innerText = status;
+        badge.className = `px-2.5 py-0.5 rounded text-xs font-bold ${getStatusClass(status)}`;
+      }
+      if (progressPct) progressPct.innerText = `${progress.toFixed(1)}%`;
+      if (progressBar) progressBar.style.width = `${progress.toFixed(1)}%`;
+      if (recordsCount) recordsCount.innerText = `${(currentRecordsResp && currentRecordsResp.total) || job.current_count || 0} / ${targetCount} records (${workers} Workers)`;
+    }
+
+    function render5WorkersCards(workersList, count = 5) {
+      const container = document.getElementById('workers-grid');
+      const cards = [];
+
+      for (let i = 1; i <= count; i++) {
+        const w = (workersList && workersList[i-1]) ? workersList[i-1] : {
+          id: i,
+          status: 'IDLE',
+          progress: 0,
+          records_found: 0,
+          errors: 0,
+          current_query: '—',
+          elapsed_time: '00:00'
+        };
+
+        cards.push(`
+          <div class="bg-white border border-slate-200 p-4 rounded-xl space-y-3 flex flex-col justify-between hover:border-slate-300 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-900 flex items-center">
+                <span class="w-2 h-2 rounded-full ${w.status === 'RUNNING' ? 'bg-cyan-400 animate-pulse' : (w.status === 'COMPLETED' ? 'bg-emerald-400' : (w.status === 'FAILED' ? 'bg-rose-500' : 'bg-slate-600'))} mr-2"></span>
+                WORKER 0${i}
+              </span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${getWorkerStatusClass(w.status)}">${w.status}</span>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex justify-between text-[11px] font-mono">
+                <span class="text-slate-600">Progress</span>
+                <span class="text-blue-600 font-bold">${(w.progress || 0).toFixed(0)}%</span>
+              </div>
+              <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                <div class="bg-blue-600 h-full transition-all duration-300" style="width: ${(w.progress || 0).toFixed(0)}%"></div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 bg-slate-50/60 p-2.5 rounded-lg border border-slate-200/80 text-[11px] font-mono">
+              <div>
+                <span class="text-slate-500 block text-[10px]">Records</span>
+                <span class="text-slate-800 font-bold">${(w.records_found || 0).toLocaleString()}</span>
+              </div>
+              <div>
+                <span class="text-slate-500 block text-[10px]">Errors</span>
+                <span class="text-rose-600 font-bold">${w.errors || 0}</span>
+              </div>
+            </div>
+
+            <div class="text-[10px] text-slate-600 space-y-1 font-mono truncate">
+              <div class="truncate text-blue-600"><span class="text-slate-500">Target:</span> ${w.current_location || (currentJob ? (currentJob.config.location.city || currentJob.config.location.custom_location) : 'Surabaya')}</div>
+              <div class="truncate"><span class="text-slate-500">Query:</span> ${w.current_query || '—'}</div>
+              <div><span class="text-slate-500">Elapsed:</span> ${w.elapsed_time || '00:00'}</div>
+            </div>
+          </div>
+        `);
+
+      }
+
+      container.innerHTML = cards.join('');
+    }
+
+    function renderRecordsTable() {
+      const tbody = document.getElementById('records-table-body');
+      const resp = currentRecordsResp;
+      const records = resp.records || [];
+
+      document.getElementById('records-counter-label').innerText = `Showing ${records.length} of ${resp.total.toLocaleString()} records (Page ${resp.page} of ${resp.total_pages})`;
+      document.getElementById('records-page-num').innerText = `Page ${resp.page} of ${resp.total_pages}`;
+
+      if (records.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">${resp.diagnostic || 'No records found matching current filter/search.'}</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = records.map((r, i) => `
+        <tr class="hover:bg-slate-100/50 border-b border-slate-200/40">
+          <td class="p-3 text-blue-600 truncate max-w-[100px]">${r.PlaceID || 'N/A'}</td>
+          <td class="p-3 font-bold text-slate-900">${r.Name}</td>
+          <td class="p-3 text-slate-700 truncate max-w-[200px]">${r.Address}</td>
+          <td class="p-3 text-slate-600">${r.City} / ${r.Kecamatan || '-'}</td>
+          <td class="p-3 text-amber-600 font-bold">${r.Rating || '-'}</td>
+          <td class="p-3 text-slate-700">${r.Phone || '-'}</td>
+          <td class="p-3 text-slate-700"><span class="bg-white px-2 py-0.5 rounded text-[10px]">W0${r.worker_id || 1}</span></td>
+          <td class="p-3 text-right">
+            <button onclick="showDetailModal(${i})" class="text-blue-600 hover:text-cyan-300">View</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderDashboardLatestRecords() {
+      const tbody = document.getElementById('dashboard-latest-records');
+      const latest = (currentRecordsResp.records || []).slice(0, 6);
+
+      if (latest.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-slate-500">Click ↻ Refresh to load records.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = latest.map(r => `
+        <tr class="hover:bg-slate-100/40">
+          <td class="p-2.5 font-bold text-slate-800 truncate max-w-[140px]">${r.Name}</td>
+          <td class="p-2.5 text-slate-600">${r.City}</td>
+          <td class="p-2.5 text-blue-600"><span class="bg-blue-50 px-1.5 py-0.5 rounded">W0${r.worker_id || 1}</span></td>
+          <td class="p-2.5 text-right font-bold text-amber-600">${r.Rating || '-'}</td>
+        </tr>
+      `).join('');
+    }
+
+    function changeRecordsPage(delta) {
+      const maxPage = currentRecordsResp.total_pages || 1;
+      currentPage = Math.max(1, Math.min(maxPage, currentPage + delta));
+      fetchCurrentRecords();
+    }
+
+    function updateMapMarkers(records) {
+      if (!map || !markersGroup) return;
+      markersGroup.clearLayers();
+      let count = 0;
+
+      records.forEach(r => {
+        const lat = parseFloat(r.Latitude);
+        const lon = parseFloat(r.Longitude);
+        if (!isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0) {
+          const marker = L.marker([lat, lon]).bindPopup(`
+            <div style="font-family: sans-serif; font-size: 12px;">
+              <strong>${r.Name}</strong><br/>
+              ${r.Address}<br/>
+              Phone: ${r.Phone || 'N/A'}
+            </div>
+          `);
+          markersGroup.addLayer(marker);
+          count++;
+        }
+      });
+
+      document.getElementById('map-counter').innerText = `${count} markers`;
+      if (count > 0 && records[0].Latitude) {
+        const firstLat = parseFloat(records[0].Latitude);
+        const firstLon = parseFloat(records[0].Longitude);
+        if (!isNaN(firstLat) && !isNaN(firstLon)) {
+          map.setView([firstLat, firstLon], 12);
+        }
+      }
+    }
+
+    function showDetailModal(index) {
+      const r = (currentRecordsResp.records || [])[index];
+      if (!r) return;
+
+      document.getElementById('modal-title').innerText = r.Name;
+      document.getElementById('modal-body').innerHTML = `
+        <div class="space-y-2">
+          <div><strong class="text-slate-600">Place ID:</strong> ${r.PlaceID}</div>
+          <div><strong class="text-slate-600">Name:</strong> ${r.Name}</div>
+          <div><strong class="text-slate-600">Address:</strong> ${r.Address}</div>
+          <div><strong class="text-slate-600">City / District:</strong> ${r.City} / ${r.Kecamatan}</div>
+          <div><strong class="text-slate-600">Coordinates:</strong> ${r.Latitude}, ${r.Longitude}</div>
+          <div><strong class="text-slate-600">Rating:</strong> ${r.Rating}</div>
+          <div><strong class="text-slate-600">Phone:</strong> ${r.Phone}</div>
+          <div><strong class="text-slate-600">Opening Hours:</strong> ${r.OpeningHours || 'N/A'}</div>
+          <div><strong class="text-slate-600">Categories:</strong> ${r.Types}</div>
+          ${r.LinkSetinganTitik ? `<div class="pt-2"><a href="${r.LinkSetinganTitik}" target="_blank" class="text-blue-600 underline">Open in Google Maps &rarr;</a></div>` : ''}
+        </div>
+      `;
+      document.getElementById('modal-detail').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-detail').classList.add('hidden');
+    }
+
+    function getStatusClass(status) {
+      switch (status) {
+        case 'RUNNING': return 'bg-blue-100 text-blue-600';
+        case 'COMPLETED': return 'bg-emerald-100 text-emerald-600';
+        case 'PAUSED': return 'bg-amber-100 text-amber-600';
+        case 'STOPPED': return 'bg-rose-100 text-rose-600';
+        default: return 'bg-white text-slate-600';
+      }
+    }
+
+    function getWorkerStatusClass(status) {
+      switch (status) {
+        case 'RUNNING': return 'bg-blue-100 text-blue-600';
+        case 'COMPLETED': return 'bg-emerald-100 text-emerald-600';
+        case 'FAILED': return 'bg-rose-100 text-rose-600';
+        case 'PAUSED': return 'bg-amber-100 text-amber-600';
+        default: return 'bg-white text-slate-600';
+      }
+    }
+
+    async function handleCreateJob(e) {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('btn-submit-job');
+      const originalText = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>STARTING...</span>';
+      submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+
+      const payload = {
+        target: document.getElementById('input-target').value,
+        location: {
+          country: document.getElementById('select-country').value,
+          province: document.getElementById('select-province').value,
+          city: document.getElementById('select-city').value,
+          district: document.getElementById('select-district').value,
+          custom_location: document.getElementById('input-custom-location').value
+        },
+        queries: document.getElementById('input-queries').value.split('\n').filter(q => q.trim()),
+        target_records: parseInt(document.getElementById('input-target-records').value) || 1000,
+        workers: parseInt(document.getElementById('input-workers').value) || 5,
+        headless: document.getElementById('select-headless').value === 'true',
+        settings: {
+          validate_location: true,
+          validate_category: true,
+          remove_duplicates: true,
+          skip_permanently_closed: false
+        }
+      };
+
+      try {
+        const res = await fetch('/api/jobs', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || 'Gagal membuat scraping job baru');
+        }
+        const jobState = await res.json();
+        
+        // Immediately switch active job context to newly created job
+        currentJob = jobState;
+        currentRecordsResp = { total: 0, page: 1, total_pages: 1, records: [] };
+        currentPage = 1;
+
+        // Clear terminal log for clean new job start
+        const terminal = document.getElementById("log-terminal");
+        if (terminal) {
+          terminal.innerHTML = `<div class="text-blue-600 font-bold">[SYSTEM] Job baru dibuat: ${(jobState.config && jobState.config.title) || (jobState.config && jobState.config.id) || ''}</div>`;
+        }
+
+        // Render immediately
+        renderGlobalJobCard(jobState);
+        render5WorkersCards(jobState.workers || [], (jobState.config && jobState.config.workers) || 5);
+        if (typeof renderIterationUI === 'function') renderIterationUI(jobState);
+        renderRecordsTable();
+        updateHeaderStats();
+
+        // Start the job
+        await fetch(`/api/jobs/${encodeURIComponent(jobState.config.id)}/start`, {method: 'POST'});
+        
+        switchTab('dashboard');
+        await refreshAllData();
+      } catch (err) {
+        alert("Error creating job: " + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+        submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+      }
+    }
+
+    async function controlJob(jobId, action) {
+      try {
+        await fetch(`/api/jobs/${encodeURIComponent(jobId)}/${action}`, {method: 'POST'});
+        await refreshAllData();
+      } catch (err) {}
+    }
+
+    function exportCurrentJob(format) {
+      const activeJob = currentJob || (jobs && jobs.length > 0 ? jobs[0] : null);
+      const jobId = activeJob && activeJob.config ? activeJob.config.id : 'default';
+      window.open(`/api/jobs/${encodeURIComponent(jobId)}/export?format=${encodeURIComponent(format)}`);
+    }
+
+    function exportAllData(format) {
+      window.open(`/api/export/all?format=${encodeURIComponent(format)}`);
+    }
+
+    function renderJobsTable() {
+      const tbody = document.getElementById('jobs-table-body');
+      if (!tbody) return;
+      if (!jobs || jobs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">Belum ada riwayat pencarian.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = jobs.map(j => {
+        if (!j || !j.config) return '';
+        const title = j.config.title || 'Pencarian';
+        const id = j.config.id || '-';
+        const loc = (j.config.location && (j.config.location.city || j.config.location.province || j.config.location.custom_location)) || 'Kustom';
+        const queryCount = (j.config.queries && j.config.queries.length) || 0;
+        const currentCount = j.current_count || 0;
+        const targetCount = j.target_count || (j.config && j.config.target_records) || 0;
+        const progress = typeof j.progress === 'number' ? j.progress : 0;
+        const status = j.status || 'MENUNGGU';
+
+        return `
+        <tr class="hover:bg-slate-100/40 border-b border-slate-200/40">
+          <td class="p-3">
+            <div class="font-semibold text-slate-800">${title}</div>
+            <div class="text-[10px] text-slate-500 font-mono">${id}</div>
+          </td>
+          <td class="p-3 font-medium text-slate-800">${loc}</td>
+          <td class="p-3 font-mono">${queryCount} kata kunci</td>
+          <td class="p-3 font-mono">${currentCount} / ${targetCount} (${progress.toFixed(0)}%)</td>
+          <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${getStatusClass(status)}">${status}</span></td>
+          <td class="p-3 text-right space-x-1.5 whitespace-nowrap">
+            <button onclick="onSelectJob('${id}'); switchTab('dashboard');" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-2.5 py-1 rounded text-xs shadow-sm transition" title="Jadikan job aktif & buka di Dashboard untuk iterasi">Pilih Job</button>
+            <button onclick="onSelectJob('${id}'); switchTab('records');" class="bg-white hover:bg-slate-100 text-blue-600 border border-slate-300 px-2.5 py-1 rounded text-xs shadow-sm">Lihat Data</button>
+            <button onclick="window.open('/api/jobs/${encodeURIComponent(id)}/export?format=csv')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 px-2.5 py-1 rounded text-xs font-semibold shadow-sm" title="Download CSV untuk ${loc}">Download CSV</button>
+            <button onclick="showDeleteJobModal('${id}')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-2.5 py-1 rounded text-xs font-semibold shadow-sm transition" title="Hapus riwayat job ini secara permanen">Hapus</button>
+          </td>
+        </tr>
+      `;
+      }).join('');
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      const isSuccess = type === 'success';
+      const isError = type === 'error';
+      const bg = isError ? 'bg-rose-600 text-white' : (isSuccess ? 'bg-slate-900 text-white' : 'bg-amber-600 text-white');
+      const icon = isError ? 'alert-circle' : (isSuccess ? 'check-circle' : 'info');
+      toast.className = `${bg} px-4 py-3 rounded-lg shadow-xl text-xs font-medium flex items-center gap-2.5 transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto`;
+      toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 shrink-0"></i><span>${message}</span>`;
+      container.appendChild(toast);
+      lucide.createIcons();
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 10);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    let isDeletingJob = false;
+
+    function showDeleteJobModal(jobId) {
+      if (!jobId) return;
+      const job = jobs.find(j => j.config && j.config.id === jobId);
+      if (!job) {
+        showToast('Job tidak ditemukan.', 'error');
+        return;
+      }
+      if (job.status === 'RUNNING') {
+        showToast('Job sedang berjalan. Hentikan (Stop) job terlebih dahulu sebelum menghapus.', 'error');
+        return;
+      }
+
+      const delTitle = document.getElementById('del-job-title');
+      const delId = document.getElementById('del-job-id');
+      const delLoc = document.getElementById('del-job-location');
+      const delRecs = document.getElementById('del-job-records');
+      const delTarget = document.getElementById('del-job-id-target');
+
+      if (delTitle) delTitle.innerText = (job.config && job.config.title) || '-';
+      if (delId) delId.innerText = (job.config && job.config.id) || '-';
+      if (delLoc) delLoc.innerText = (job.config && job.config.location && (job.config.location.city || job.config.location.province || job.config.location.custom_location)) || 'Kustom';
+      if (delRecs) delRecs.innerText = `${job.current_count || 0} toko`;
+      if (delTarget) delTarget.value = job.config.id;
+
+      const modal = document.getElementById('modal-delete-job');
+      if (modal) {
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+      }
+    }
+
+    function closeDeleteJobModal() {
+      if (isDeletingJob) return;
+      const modal = document.getElementById('modal-delete-job');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    async function confirmDeleteJob() {
+      if (isDeletingJob) return;
+      const targetInput = document.getElementById('del-job-id-target');
+      const targetId = targetInput ? targetInput.value : '';
+      if (!targetId) {
+        showToast('Target Job ID kosong.', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btn-confirm-delete-job');
+      const originalText = btn ? btn.innerHTML : 'Hapus Job Ini';
+      isDeletingJob = true;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="flex items-center gap-1.5"><svg class="animate-spin -ml-1 mr-1 h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Menghapus...</span>`;
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        const res = await fetch(`/api/jobs/${encodeURIComponent(targetId)}`, {
+          method: 'DELETE',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          isDeletingJob = false;
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+          }
+          closeDeleteJobModal();
+          showToast(`Riwayat Job ${targetId} berhasil dihapus.`);
+
+          // Remove only the target job from array
+          jobs = jobs.filter(j => j.config && j.config.id !== targetId);
+          updateJobSelectorDropdown();
+
+          if (currentJob && currentJob.config && currentJob.config.id === targetId) {
+            if (jobs.length > 0) {
+              onSelectJob(jobs[0].config.id);
+            } else {
+              currentJob = null;
+              currentRecordsResp = { total: 0, page: 1, total_pages: 1, records: [] };
+              currentPage = 1;
+              renderGlobalJobCard(null);
+              renderRecordsTable();
+              renderDashboardLatestRecords();
+              render5WorkersCards([], 5);
+              updateHeaderStats();
+            }
+          }
+
+          await refreshAllData();
+        } else {
+          const errText = await res.text();
+          showToast(`Gagal menghapus job: ${errText || res.statusText}`, 'error');
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          showToast('Permintaan hapus job timeout. Silakan coba lagi.', 'error');
+        } else {
+          showToast(`Error menghapus job: ${err.message}`, 'error');
+        }
+      } finally {
+        isDeletingJob = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }
+      }
+    }
+
+    let isWipingData = false;
+
+    function showWipeAllModal() {
+      const modal = document.getElementById('modal-wipe-all');
+      if (modal) {
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+      }
+    }
+
+    function closeWipeAllModal() {
+      if (isWipingData) return;
+      const modal = document.getElementById('modal-wipe-all');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function wipeAllData() {
+      showWipeAllModal();
+    }
+
+    async function confirmWipeAll() {
+      if (isWipingData) return;
+      const btn = document.getElementById('btn-confirm-wipe-all');
+      const originalText = btn ? btn.innerHTML : 'Ya, Hapus Semua Data';
+      isWipingData = true;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="flex items-center gap-1.5"><svg class="animate-spin -ml-1 mr-1 h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Menghapus Semua...</span>`;
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        const res = await fetch('/api/system/wipe', {
+          method: 'POST',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          isWipingData = false;
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+          }
+          closeWipeAllModal();
+          showToast('Semua riwayat dan data berhasil dibersihkan.');
+          jobs = [];
+          currentJob = null;
+          currentRecordsResp = { total: 0, page: 1, total_pages: 1, records: [] };
+          currentPage = 1;
+          updateJobSelectorDropdown();
+          renderGlobalJobCard(null);
+          renderRecordsTable();
+          renderDashboardLatestRecords();
+          render5WorkersCards([], 5);
+          updateHeaderStats();
+          await refreshAllData();
+        } else {
+          const errText = await res.text();
+          showToast(`Gagal membersihkan data: ${errText || res.statusText}`, 'error');
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          showToast('Permintaan bersihkan data timeout. Silakan coba lagi.', 'error');
+        } else {
+          showToast(`Error: ${err.message}`, 'error');
+        }
+      } finally {
+        isWipingData = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }
+      }
+    }
+
+    let sseConnection = null;
+    let pollTimer = null;
+
+    function startAutoPoll() {
+      if (pollTimer) return;
+      pollTimer = setInterval(async () => {
+        if (currentJob && (currentJob.status === 'RUNNING' || currentJob.status === 'PAUSED')) {
+          await fetchJobs();
+          await fetchCurrentRecords();
+        }
+      }, 2500);
+    }
+
+    function initSSE() {
+      if (sseConnection) return;
+      
+      sseConnection = new EventSource('/api/events');
+      
+      sseConnection.onmessage = function(event) {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'log') {
+            const terminal = document.getElementById('log-terminal');
+            if (terminal && terminal.innerHTML.includes('[SYSTEM] Logs panel ready')) {
+                terminal.innerHTML = ''; // clear placeholder
+            }
+            if (terminal) {
+              const isScrolledToBottom = terminal.scrollHeight - terminal.clientHeight <= terminal.scrollTop + 50;
+              
+              const d = payload.data || {};
+              const ts = d.timestamp || d.Timestamp || '00:00:00';
+              const lvl = (d.level || d.Level || 'INFO').toUpperCase();
+              const msg = d.message || d.Message || '';
+
+              const logLine = document.createElement('div');
+              const color = lvl === 'ERROR' ? 'text-rose-600' : (lvl === 'WARN' ? 'text-amber-600' : 'text-slate-700');
+              logLine.className = color;
+              logLine.innerText = `[${ts}] [${lvl}] ${msg}`;
+              terminal.appendChild(logLine);
+              
+              if (isScrolledToBottom) {
+                terminal.scrollTop = terminal.scrollHeight;
+              }
+              
+              while (terminal.childElementCount > 500) {
+                terminal.removeChild(terminal.firstChild);
+              }
+            }
+          } else if (payload.type === 'state') {
+            const state = payload.data;
+            if (state && state.config) {
+              const idx = jobs.findIndex(j => j.config.id === state.config.id);
+              if (idx >= 0) {
+                jobs[idx] = state;
+              } else {
+                jobs.unshift(state);
+              }
+              if (!currentJob || currentJob.config.id === state.config.id) {
+                currentJob = state;
+                renderGlobalJobCard(state);
+                renderIterationUI(state);
+                render5WorkersCards(state.workers || [], state.config.workers || 5);
+              }
+              renderJobsTable();
+            }
+          } else if (payload.type === 'record') {
+            if (currentJob && currentJob.config.id === payload.job_id) {
+              currentJob.current_count = (currentJob.current_count || 0) + 1;
+              const totalEl = document.getElementById('stat-total-records');
+              const validEl = document.getElementById('stat-valid-records');
+              if (totalEl) totalEl.innerText = currentJob.current_count.toLocaleString();
+              if (validEl) validEl.innerText = currentJob.current_count.toLocaleString();
+            }
+          }
+        } catch (e) {}
+      };
+      
+      sseConnection.onerror = function() {
+        console.error("SSE Connection Error. Attempting to reconnect...");
+        if (sseConnection) {
+          sseConnection.close();
+          sseConnection = null;
+        }
+        setTimeout(initSSE, 5000);
+      };
+
+      startAutoPoll();
+    }
+
+    function setupCombobox(inputId, dropdownId, items, onSelectCallback) {
+      const input = document.getElementById(inputId);
+      const dropdown = document.getElementById(dropdownId);
+      if (!input || !dropdown) return;
+
+      const render = (filterText) => {
+        const filtered = items.filter(i => i.toLowerCase().includes(filterText.toLowerCase()));
+        if (filtered.length === 0) {
+          dropdown.innerHTML = `<div class="p-2 text-slate-500 text-xs">No matches found</div>`;
+          return;
+        }
+        dropdown.innerHTML = filtered.map(i => `<div class="p-2 cursor-pointer hover:bg-slate-100 text-slate-800 text-sm border-b border-slate-300/50 last:border-0 combobox-item">${i}</div>`).join('');
+        
+        dropdown.querySelectorAll('.combobox-item').forEach(el => {
+          el.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // prevent blur
+            input.value = el.innerText;
+            dropdown.classList.add('hidden');
+            if (onSelectCallback) onSelectCallback(el.innerText);
+          });
+        });
+      };
+
+      input.addEventListener('focus', () => {
+        render(input.value);
+        dropdown.classList.remove('hidden');
+      });
+
+      input.addEventListener('input', () => {
+        render(input.value);
+        dropdown.classList.remove('hidden');
+      });
+
+      input.addEventListener('blur', () => {
+        setTimeout(() => dropdown.classList.add('hidden'), 150);
+      });
+    }
+
+    async function initLocationDropdowns() {
+      const provInput = document.getElementById('select-province');
+      const cityInput = document.getElementById('select-city');
+      const distInput = document.getElementById('select-district');
+      
+      let provinces = [];
+      try {
+        const res = await fetch('/api/locations/provinces');
+        if (res.ok) provinces = await res.json();
+      } catch (e) {}
+
+      setupCombobox('select-province', 'dropdown-province', provinces, async (val) => {
+        cityInput.value = '';
+        distInput.value = '';
+        cityInput.disabled = true;
+        distInput.disabled = true;
+        
+        if (val) {
+          cityInput.disabled = false;
+          cityInput.placeholder = "Loading cities...";
+          try {
+            const res = await fetch(`/api/locations/cities?province=${encodeURIComponent(val)}`);
+            if (res.ok) {
+              const cities = await res.json();
+              cityInput.placeholder = "Search city...";
+              setupCombobox('select-city', 'dropdown-city', cities, async (cVal) => {
+                distInput.value = '';
+                distInput.disabled = true;
+                
+                if (cVal) {
+                  distInput.disabled = false;
+                  distInput.placeholder = "Loading districts...";
+                  try {
+                    const res = await fetch(`/api/locations/districts?city=${encodeURIComponent(cVal)}`);
+                    if (res.ok) {
+                      const dists = await res.json();
+                      distInput.placeholder = "Search district...";
+                      // Add 'All Districts' as the first option
+                      const allDists = ["All Districts"].concat(dists || []);
+                      setupCombobox('select-district', 'dropdown-district', allDists, null);
+                    }
+                  } catch (e) {}
+                }
+              });
+            }
+          } catch (e) {}
+        }
+      });
+    }
+
+    function generateQueries() {
+      const target = document.getElementById('input-target').value.trim() || 'toko bangunan';
+      const prov = document.getElementById('select-province').value.trim();
+      const city = document.getElementById('select-city').value.trim();
+      const dist = document.getElementById('select-district').value.trim();
+      
+      const baseQueries = target.split(',').map(s => s.trim()).filter(s => s);
+      const generated = [];
+
+      let suffix = '';
+      if (dist && dist !== 'All Districts') suffix += ` in ${dist}`;
+      if (city) suffix += (suffix ? `, ${city}` : ` in ${city}`);
+      if (prov) suffix += (suffix ? `, ${prov}` : ` in ${prov}`);
+      
+      if (!suffix) suffix = ' in Indonesia';
+
+      for (let base of baseQueries) {
+        generated.push(`${base}${suffix}`);
+        
+        if (base.toLowerCase() === 'toko bangunan') {
+           generated.push(`toko material bangunan${suffix}`);
+           generated.push(`toko semen${suffix}`);
+        }
+      }
+      document.getElementById('input-queries').value = generated.join('\n');
+    }
+
+    function clearLogs() {
+      document.getElementById('log-terminal').innerHTML = '<div class="text-slate-500">[SYSTEM] Logs cleared.</div>';
+    }
+
+    function toggleIterStrategy() {
+        const strategy = document.getElementById('iter-strategy').value;
+        if (strategy === 'query') {
+          document.getElementById('iter-query-inputs').classList.remove('hidden');
+          document.getElementById('iter-stores-inputs').classList.add('hidden');
+        } else {
+          document.getElementById('iter-query-inputs').classList.add('hidden');
+          document.getElementById('iter-stores-inputs').classList.remove('hidden');
+        }
+      }
+
+      function showStartIterationModal() {
+        if (!currentJob || !currentJob.config) {
+            alert("No active job selected.");
+            return;
+        }
+        document.getElementById('iter-target-stores').value = currentJob.config.batch_size || 50;
+        document.getElementById('modal-start-iteration').classList.remove('hidden');
+      }
+
+      async function submitStartIteration() {
+        if (!currentJob || !currentJob.config) return;
+        const targetStores = parseInt(document.getElementById('iter-target-stores').value) || (currentJob.config.batch_size || 50);
+        const payload = {
+            strategy: 'stores',
+            target_stores: targetStores
+        };
+        
+        try {
+            const res = await fetch(`/api/jobs/${encodeURIComponent(currentJob.config.id)}/iterations/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const text = await res.text();
+                alert(`Error starting iteration: ${text}`);
+                return;
+            }
+            document.getElementById('modal-start-iteration').classList.add('hidden');
+            await refreshAllData();
+        } catch (e) {
+            alert(`Network error: ${e.message}`);
+        }
+      }
+
+      async function pauseIteration(iterID) {
+        if (!currentJob || !currentJob.config) return;
+        try {
+            await fetch(`/api/jobs/${encodeURIComponent(currentJob.config.id)}/iterations/${encodeURIComponent(iterID)}/pause`, { method: 'POST' });
+            await refreshAllData();
+        } catch (e) {}
+      }
+
+      async function resumeIteration(iterID) {
+        if (!currentJob || !currentJob.config) return;
+        try {
+            await fetch(`/api/jobs/${encodeURIComponent(currentJob.config.id)}/iterations/${encodeURIComponent(iterID)}/resume`, { method: 'POST' });
+            await refreshAllData();
+        } catch (e) {}
+      }
+      
+      async function stopIteration(iterID) {
+        if (!currentJob || !currentJob.config) return;
+        if (!confirm("Are you sure you want to stop this iteration?")) return;
+        try {
+            await fetch(`/api/jobs/${encodeURIComponent(currentJob.config.id)}/iterations/${encodeURIComponent(iterID)}/stop`, { method: 'POST' });
+            await refreshAllData();
+        } catch (e) {}
+      }
+
+      async function retryIteration(iterID) {
+        if (!currentJob || !currentJob.config) return;
+        try {
+            await fetch(`/api/jobs/${encodeURIComponent(currentJob.config.id)}/iterations/${encodeURIComponent(iterID)}/retry`, { method: 'POST' });
+            await refreshAllData();
+        } catch (e) {}
+      }
+      
+      function renderIterationUI(job) {
+          const monitorContainer = document.getElementById('active-iteration-monitor');
+          const timelineContainer = document.getElementById('iteration-timeline');
+          
+          if (!job.iterations || job.iterations.length === 0) {
+              monitorContainer.innerHTML = '<div class="text-center py-6 text-slate-500 italic">No active iteration</div>';
+              timelineContainer.innerHTML = '<div class="text-center py-6 text-[11px] text-slate-500 italic">No iterations found</div>';
+              return;
+          }
+          
+          let activeIter = null;
+          let timelineHTML = '';
+          
+          // Reverse iterations for timeline (newest first)
+          const sortedIters = [...job.iterations].reverse();
+          
+          sortedIters.forEach(it => {
+              if (it.iteration_id === job.active_iteration_id && (it.status === 'RUNNING' || it.status === 'PAUSED')) {
+                  activeIter = it;
+              }
+              
+              let statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white text-slate-600">${it.status}</span>`;
+              if (it.status === 'RUNNING') statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-600">RUNNING</span>`;
+              if (it.status === 'COMPLETED') statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-600">COMPLETED</span>`;
+              if (it.status === 'FAILED' || it.status === 'INTERRUPTED') statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-600">${it.status}</span>`;
+              if (it.status === 'PAUSED') statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-600">PAUSED</span>`;
+              
+              let pct = 0;
+              if (it.target_queries > 0) pct = Math.min(100, (it.queries_processed / it.target_queries) * 100);
+              else if (it.target_stores > 0) pct = Math.min(100, (it.stores_found / it.target_stores) * 100);
+              else if (it.end_query > 0 && it.start_query > 0) {
+                  let total = Math.abs(it.start_query - it.end_query) + 1;
+                  pct = Math.min(100, (it.queries_processed / total) * 100);
+              }
+              
+              let details = `Target: ${it.target_stores || 50} stores`;
+              
+              timelineHTML += `
+              <div class="border-b border-slate-200 pb-3 mb-3 last:border-0 last:mb-0 last:pb-0">
+                  <div class="flex justify-between items-center mb-1">
+                      <div class="font-bold text-slate-800">Iteration ${it.iteration_number} <span class="text-slate-500 text-[10px] font-normal ml-1">(${details})</span></div>
+                      ${statusBadge}
+                  </div>
+                  <div class="flex justify-between text-[10px] font-mono mb-1.5 text-slate-600">
+                      <span>${it.queries_processed} queries (${it.queries_success}✓ ${it.queries_failed}✗)</span>
+                      <span>${it.stores_found} stores</span>
+                  </div>
+                  <div class="w-full bg-white h-1 rounded-full overflow-hidden">
+                      <div class="bg-blue-600 h-full" style="width: ${pct}%"></div>
+                  </div>
+              </div>`;
+          });
+          
+          timelineContainer.innerHTML = timelineHTML;
+          
+          if (activeIter) {
+              const it = activeIter;
+              let targetLabel = `${it.stores_found} / ${it.target_stores} stores`;
+              
+              let actionBtns = '';
+              if (it.status === 'RUNNING') {
+                  actionBtns = `
+                      <button onclick="pauseIteration('${it.iteration_id}')" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold py-1.5 rounded transition">Pause</button>
+                      <button onclick="stopIteration('${it.iteration_id}')" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold py-1.5 rounded transition">Stop</button>
+                  `;
+              } else if (it.status === 'PAUSED') {
+                  actionBtns = `
+                      <button onclick="resumeIteration('${it.iteration_id}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-1.5 rounded transition">Resume</button>
+                      <button onclick="stopIteration('${it.iteration_id}')" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold py-1.5 rounded transition">Stop</button>
+                  `;
+              }
+              
+              monitorContainer.innerHTML = `
+                  <div class="flex items-center justify-between mb-3 border-b border-slate-300/50 pb-2">
+                      <span class="text-blue-600 font-bold text-sm">Iteration ${it.iteration_number}</span>
+                      <span class="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded text-[10px]">ACTIVE</span>
+                  </div>
+                  
+                  <div class="grid grid-cols-2 gap-3 mb-4">
+                      <div>
+                          <div class="text-[10px] text-slate-500 font-medium">PROGRESS</div>
+                          <div class="font-mono text-slate-800">${targetLabel}</div>
+                      </div>
+                      <div>
+                          <div class="text-[10px] text-slate-500 font-medium">STORES FOUND</div>
+                          <div class="font-mono text-slate-800 text-emerald-600">${it.stores_found}</div>
+                      </div>
+                      <div>
+                          <div class="text-[10px] text-slate-500 font-medium">FAILED QUERIES</div>
+                          <div class="font-mono ${it.queries_failed > 0 ? 'text-rose-600' : 'text-slate-800'}">${it.queries_failed}</div>
+                      </div>
+                      <div>
+                          <div class="text-[10px] text-slate-500 font-medium">STARTED AT</div>
+                          <div class="font-mono text-[10px] text-slate-700 mt-0.5 truncate" title="${it.started_at}">${it.started_at.split('T')[1] || it.started_at}</div>
+                      </div>
+                  </div>
+                  
+                  <div class="flex gap-2 mt-4 pt-4 border-t border-slate-300/50">
+                      ${actionBtns}
+                  </div>
+              `;
+          } else {
+              // Maybe there is a failed or interrupted iteration
+              let retryTarget = sortedIters.find(i => i.status === 'FAILED' || i.status === 'INTERRUPTED' || i.status === 'PARTIAL');
+              if (retryTarget) {
+                  monitorContainer.innerHTML = `
+                      <div class="text-center py-4">
+                          <i data-lucide="alert-triangle" class="w-8 h-8 text-amber-500 mx-auto mb-2"></i>
+                          <div class="text-amber-600 font-bold mb-1">Iteration ${retryTarget.iteration_number} ${retryTarget.status}</div>
+                          <div class="text-[10px] text-slate-600 mb-4">${retryTarget.queries_processed} queries processed.</div>
+                          <button onclick="retryIteration('${retryTarget.iteration_id}')" class="bg-slate-700 hover:bg-slate-600 text-white text-xs px-4 py-1.5 rounded transition">Retry / Resume</button>
+                      </div>
+                  `;
+                  lucide.createIcons();
+              } else {
+                  monitorContainer.innerHTML = '<div class="text-center py-6 text-slate-500 italic">No active iteration</div>';
+              }
+          }
+      }
+    </script>
+    <script src="map.js"></script>
+  </body>
+</html>
