@@ -1,5 +1,5 @@
 module maps-scraper
 
-go 1.26.3
+go 1.22
 
-require golang.org/x/net v0.58.0 // indirect
+require golang.org/x/net v0.34.0
