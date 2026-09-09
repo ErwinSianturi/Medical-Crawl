@@ -562,6 +562,116 @@ func TestAPI_SchedulerConfigUpdate(t *testing.T) {
 	}
 }
 
+func TestAPI_DeleteRunCascadesToArticles(t *testing.T) {
+	ts, tempDir := setupMedicalServer(t)
+	defer ts.Close()
+	defer os.RemoveAll(tempDir)
+
+	ctrl := api.GetMedicalCrawlerController()
+	runStorage := crawler.GetRunStorage()
+
+	// 1. Create Run 1 and Run 2
+	run1, err1 := runStorage.CreateRun("Halodoc", "https://www.halodoc.com/artikel", "Test Topic 1", 10, "manual")
+	if err1 != nil {
+		t.Fatalf("failed to create run 1: %v", err1)
+	}
+	run2, err2 := runStorage.CreateRun("Detik", "https://health.detik.com", "Test Topic 2", 10, "manual")
+	if err2 != nil {
+		t.Fatalf("failed to create run 2: %v", err2)
+	}
+
+	art1 := model.Article{
+		ID:           "art_test_run1_01",
+		Title:        "Article From Run 1",
+		Category:     "General Health",
+		Image:        "https://example.com/1.jpg",
+		Description:  []string{"Content of article 1."},
+		SourceURL:    "https://example.com/art1",
+		CrawlSession: run1.DisplayName,
+		RunID:        run1.ID,
+	}
+
+	art2 := model.Article{
+		ID:           "art_test_run2_01",
+		Title:        "Article From Run 2",
+		Category:     "General Health",
+		Image:        "https://example.com/2.jpg",
+		Description:  []string{"Content of article 2."},
+		SourceURL:    "https://example.com/art2",
+		CrawlSession: run2.DisplayName,
+		RunID:        run2.ID,
+	}
+
+	storage, errStorage := crawler.NewJSONStorage("output/articles.json", true)
+	if errStorage != nil {
+		t.Fatalf("failed to open storage: %v", errStorage)
+	}
+	_, _ = storage.SaveWithResult(art1)
+	_, _ = storage.SaveWithResult(art2)
+	_ = storage.Close()
+
+	_ = runStorage.RecordArticleRun(run1.ID, art1.ID)
+	_ = runStorage.RecordArticleRun(run2.ID, art2.ID)
+
+	// Verify both articles exist initially
+	artsBefore := ctrl.GetArticles()
+	foundArt1 := false
+	foundArt2 := false
+	for _, a := range artsBefore {
+		if a.ID == art1.ID {
+			foundArt1 = true
+		}
+		if a.ID == art2.ID {
+			foundArt2 = true
+		}
+	}
+	if !foundArt1 || !foundArt2 {
+		t.Fatalf("expected both articles to exist initially (foundArt1=%v, foundArt2=%v)", foundArt1, foundArt2)
+	}
+
+	// 2. Delete Run 1 via Controller
+	deleted, errDel := ctrl.DeleteRun(run1.ID)
+	if errDel != nil {
+		t.Fatalf("DeleteRun failed: %v", errDel)
+	}
+	if !deleted {
+		t.Fatalf("expected deleted=true for run 1")
+	}
+
+	// 3. Verify that articles belonging to Run 1 are deleted, while Run 2 articles remain
+	artsAfter := ctrl.GetArticles()
+	for _, a := range artsAfter {
+		if a.ID == art1.ID {
+			t.Errorf("art1 from Run 1 should have been deleted, but still found in GetArticles()")
+		}
+	}
+
+	foundArt2After := false
+	for _, a := range artsAfter {
+		if a.ID == art2.ID {
+			foundArt2After = true
+		}
+	}
+	if !foundArt2After {
+		t.Errorf("art2 from Run 2 should still exist, but was not found in GetArticles()")
+	}
+
+	// 4. Verify disk persistence in output/articles.json
+	diskArts, errRead := crawler.ReadArticlesJSON("output/articles.json")
+	if errRead != nil {
+		t.Fatalf("failed to read disk articles: %v", errRead)
+	}
+	for _, a := range diskArts {
+		if a.ID == art1.ID {
+			t.Errorf("art1 from Run 1 still found in output/articles.json on disk")
+		}
+	}
+
+	// Clean up test run 2
+	_, _ = ctrl.DeleteRun(run2.ID)
+}
+
+
 
 
 
