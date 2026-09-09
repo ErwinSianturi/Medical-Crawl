@@ -41,17 +41,18 @@ COPY --from=builder --chown=appuser:appgroup /app /app
 USER appuser
 
 # Expose standard application port
-EXPOSE 8080
+EXPOSE 8081
 
 # Environment defaults
-ENV PORT=8080
+ENV PORT=8081
 ENV TZ=Asia/Jakarta
 
 # Healthcheck targeting system status endpoint using Alpine's built-in wget
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -q --spider http://127.0.0.1:8080/api/system/status || exit 1
+  CMD wget -q --spider http://127.0.0.1:8081/api/system/status || exit 1
 
 # Entry point starts the server
 ENTRYPOINT ["/app/server"]
-CMD ["-port", "8080", "-host", "0.0.0.0", "-web-dir", "web", "-output-dir", "output"]
+CMD ["-port", "8081", "-host", "0.0.0.0", "-web-dir", "web", "-output-dir", "output"]
+
 

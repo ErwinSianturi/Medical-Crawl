@@ -32,7 +32,7 @@ func getEnvInt(key string, defaultVal int) int {
 }
 
 func main() {
-	defaultPort := getEnvInt("PORT", 8080)
+	defaultPort := getEnvInt("PORT", 8081)
 	defaultHost := getEnv("HOST", "0.0.0.0")
 	defaultWebDir := getEnv("WEB_DIR", "web")
 	defaultOutputDir := getEnv("OUTPUT_DIR", "output")
