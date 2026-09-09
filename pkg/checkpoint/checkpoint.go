@@ -29,6 +29,7 @@ type QueryStatusRecord struct {
 	Attempts    int        `json:"attempts"`
 	Error       string     `json:"error,omitempty"`
 	StoresFound int        `json:"stores_found"`
+	ItemsFound  int        `json:"items_found,omitempty"`
 	WorkerID    int        `json:"worker_id,omitempty"`
 	StartedAt   time.Time  `json:"started_at,omitempty"`
 	CompletedAt time.Time  `json:"completed_at,omitempty"`
@@ -46,6 +47,7 @@ type CheckpointData struct {
 	PendingCount     int                          `json:"pending_count"`
 	RunningCount     int                          `json:"running_count"`
 	StoresDiscovered int                          `json:"stores_discovered"`
+	ItemsDiscovered  int                          `json:"items_discovered,omitempty"`
 	LastUpdated      time.Time                    `json:"last_updated"`
 	Queries          map[string]*QueryStatusRecord `json:"queries"`
 }
@@ -147,7 +149,11 @@ func (cm *CheckpointManager) recalculateCounts() {
 	stores := 0
 
 	for _, rec := range cm.data.Queries {
-		stores += rec.StoresFound
+		count := rec.StoresFound
+		if rec.ItemsFound > 0 && count == 0 {
+			count = rec.ItemsFound
+		}
+		stores += count
 		switch rec.Status {
 		case StateSuccess:
 			completed++
@@ -165,6 +171,7 @@ func (cm *CheckpointManager) recalculateCounts() {
 	cm.data.PendingCount = pending
 	cm.data.RunningCount = running
 	cm.data.StoresDiscovered = stores
+	cm.data.ItemsDiscovered = stores
 	cm.data.LastUpdated = time.Now()
 }
 
@@ -197,11 +204,17 @@ func (cm *CheckpointManager) MarkSuccess(id int, storesFound int) {
 	if rec, ok := cm.data.Queries[key]; ok {
 		rec.Status = StateSuccess
 		rec.StoresFound = storesFound
+		rec.ItemsFound = storesFound
 		rec.Error = ""
 		rec.CompletedAt = time.Now()
 		cm.recalculateCounts()
 		_ = cm.save()
 	}
+}
+
+// MarkTaskSuccess is a generic synonym for MarkSuccess without store terminology
+func (cm *CheckpointManager) MarkTaskSuccess(id int, itemsFound int) {
+	cm.MarkSuccess(id, itemsFound)
 }
 
 func (cm *CheckpointManager) MarkFailed(id int, errReason string, permanent bool) {

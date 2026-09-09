@@ -1,58 +1,62 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
+	"strconv"
 	"syscall"
+	"time"
 
 	"maps-scraper/pkg/api"
-	"maps-scraper/pkg/database"
-	"maps-scraper/pkg/job"
 )
 
+func getEnv(key, defaultVal string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultVal
+}
+
+func getEnvInt(key string, defaultVal int) int {
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
+	return defaultVal
+}
+
 func main() {
-	port := flag.Int("port", 8080, "HTTP Server Port")
-	host := flag.String("host", "0.0.0.0", "HTTP Server Host Interface")
-	dataDir := flag.String("data-dir", "data", "Data directory for persistent states & exports")
-	logsDir := flag.String("log-dir", "logs", "Logs directory for worker & job logs")
-	webDir := flag.String("web-dir", "web", "Directory containing built Web UI frontend assets")
+	defaultPort := getEnvInt("PORT", 8080)
+	defaultHost := getEnv("HOST", "0.0.0.0")
+	defaultWebDir := getEnv("WEB_DIR", "web")
+	defaultOutputDir := getEnv("OUTPUT_DIR", "output")
+
+	port := flag.Int("port", defaultPort, "HTTP Server Port")
+	host := flag.String("host", defaultHost, "HTTP Server Host Interface")
+	webDir := flag.String("web-dir", defaultWebDir, "Directory containing built Web UI frontend assets")
+	outputDir := flag.String("output-dir", defaultOutputDir, "Directory for crawled articles JSON output")
 	flag.Parse()
 
-	if err := database.InitDB(); err != nil {
-		log.Printf("[WARNING] Database initialization failed: %v", err)
-	} else {
-		log.Println("[DATABASE] Connection established")
-	}
-
 	log.Println("================================================================================")
-	log.Println("       🚀 GOOGLE MAPS SCRAPING CONTROL CENTER — SERVER ENGINE 🚀       ")
+	log.Println("           🏥 MEDICAL ARTICLE CRAWLER — CONTROL CENTER SERVER 🏥                ")
 	log.Println("================================================================================")
 	log.Printf("[SERVER] Listening on http://%s:%d\n", *host, *port)
-	log.Printf("[STORAGE] Data Directory: %s | Logs Directory: %s\n", *dataDir, *logsDir)
 	log.Printf("[FRONTEND] Web Directory: %s\n", *webDir)
+	log.Printf("[STORAGE] Output Directory: %s\n", *outputDir)
 	log.Println("================================================================================")
 
-	// Ensure directories exist
-	_ = os.MkdirAll(*dataDir, 0755)
-	_ = os.MkdirAll(*logsDir, 0755)
+	// Ensure runtime directories exist
 	_ = os.MkdirAll(*webDir, 0755)
-
-	// Initialize Job Manager
-	mgr, err := job.NewManager(*dataDir, *logsDir)
-	if err != nil {
-		log.Fatalf("[FATAL] Failed to initialize Job Manager: %v", err)
-	}
+	_ = os.MkdirAll(*outputDir, 0755)
 
 	// Initialize API Server
-	server := api.NewServer(mgr)
-
-	// Load Geographic Data
-	api.LoadGeoData(filepath.Join(*dataDir, "indonesia_geo.json"))
+	server := api.NewServer()
 
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux, *webDir)
@@ -72,18 +76,18 @@ func main() {
 		}
 	}()
 
-	log.Printf("[SUCCESS] Control Center online at http://localhost:%d\n", *port)
+	log.Printf("[SUCCESS] Medical Article Crawler online at http://localhost:%d\n", *port)
 
 	<-stopChan
 	log.Println("\n[SHUTDOWN] Shutting down Control Center server cleanly...")
-	_ = httpServer.Close()
-	log.Println("[SHUTDOWN] Server stopped successfully.")
-}
 
-func getAbsPath(path string) string {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return path
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Printf("[SHUTDOWN] HTTP server shutdown error: %v", err)
+	} else {
+		log.Println("[SHUTDOWN] HTTP server stopped gracefully.")
 	}
-	return abs
+	log.Println("[SHUTDOWN] Server stopped successfully.")
 }

@@ -1,0 +1,13 @@
+﻿.git
+.gitignore
+*.exe
+*.bat
+*.tmp
+*.log
+article_sample.html
+cari_kanker.html
+faktor_kanker.html
+halodoc_artikel.html
+test_detik_req.json
+.env
+docker-compose*.override.yml

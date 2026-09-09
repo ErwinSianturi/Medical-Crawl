@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "daily_at_hour": 8,
+  "daily_at_minute": 45,
+  "articles_per_source": 100,
+  "interval": 0
+}
