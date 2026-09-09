@@ -2,7 +2,6 @@ package kompas
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -77,26 +76,57 @@ func (a *Adapter) Search(ctx context.Context, query string) ([]model.Article, er
 }
 
 func (a *Adapter) SearchWithLimit(ctx context.Context, query string, maxArticles int) ([]model.Article, error) {
-	if query == "" {
-		return nil, errors.New("search query cannot be empty")
+	if maxArticles <= 0 {
+		maxArticles = 100
 	}
-	
-	if strings.ToLower(query) == "all" || strings.ToLower(query) == "all topics" {
-		query = "kesehatan" // Fallback to general health search
-	}
+	query = strings.TrimSpace(query)
+	normQuery := strings.ToLower(query)
+	isGeneral := query == "" || normQuery == "all" || normQuery == "all topics" || normQuery == "all categories" || normQuery == "semua sumber" || normQuery == "kesehatan"
 
-	searchPage := 1
 	var articles []model.Article
 	seenURLs := make(map[string]bool)
 
-	for len(articles) < maxArticles {
+	// 1. If general topic or homepage, fetch directly from Kompas Health homepage first
+	if isGeneral {
+		homeHTML, errHome := a.fetchHTML(ctx, "https://health.kompas.com/")
+		if errHome == nil && homeHTML != "" {
+			homeURLs := a.DiscoverArticleURLs(homeHTML, a.baseURL)
+			for _, u := range homeURLs {
+				if len(articles) >= maxArticles {
+					break
+				}
+				if seenURLs[u] {
+					continue
+				}
+				seenURLs[u] = true
+				art, err := a.FetchAndParse(ctx, u, "")
+				if err == nil && art.Title != "" && len(art.Description) > 0 {
+					articles = append(articles, art)
+				}
+			}
+		}
+	}
+
+	// 2. Fetch from search pagination (page 1, 2, 3, 4, ...) until maxArticles is reached
+	searchQuery := query
+	if isGeneral {
+		searchQuery = "kesehatan"
+	}
+
+	searchPage := 1
+	maxPages := (maxArticles / 5) + 5
+	if maxPages < 5 {
+		maxPages = 5
+	}
+
+	for len(articles) < maxArticles && searchPage <= maxPages {
 		select {
 		case <-ctx.Done():
 			return articles, ctx.Err()
 		default:
 		}
 
-		searchEndpoint := fmt.Sprintf("https://health.kompas.com/search?q=%s&page=%d", url.QueryEscape(query), searchPage)
+		searchEndpoint := fmt.Sprintf("https://health.kompas.com/search?q=%s&page=%d", url.QueryEscape(searchQuery), searchPage)
 		htmlContent, err := a.fetchHTML(ctx, searchEndpoint)
 		if err != nil {
 			break
@@ -119,13 +149,13 @@ func (a *Adapter) SearchWithLimit(ctx context.Context, query string, maxArticles
 			seenURLs[articleURL] = true
 
 			art, err := a.FetchAndParse(ctx, articleURL, "")
-			if err == nil && art.Title != "" {
+			if err == nil && art.Title != "" && len(art.Description) > 0 {
 				articles = append(articles, art)
 				addedOnPage++
 			}
 		}
 
-		if addedOnPage == 0 {
+		if addedOnPage == 0 && searchPage > 2 {
 			break
 		}
 		searchPage++
@@ -136,20 +166,26 @@ func (a *Adapter) SearchWithLimit(ctx context.Context, query string, maxArticles
 
 func (a *Adapter) DiscoverArticleURLs(htmlContent, baseURL string) []string {
 	var urls []string
+	seen := make(map[string]bool)
 	
-	// Kompas search results usually have class="article__link"
-	linkRegex := regexp.MustCompile(`(?i)<a[^>]*class=["'][^"']*article__link[^"']*["'][^>]*href=["']([^"']+)["']`)
+	// Universal Kompas article link regex matching all read links across sections, trending, and search
+	linkRegex := regexp.MustCompile(`(?i)<a[^>]+href=["'](https?://health\.kompas\.com/read/[^"']+|/read/[^"']+)["']`)
 	matches := linkRegex.FindAllStringSubmatch(htmlContent, -1)
 	
 	for _, m := range matches {
 		if len(m) > 1 {
 			u := m[1]
-			if strings.Contains(u, "health.kompas.com/read") {
-				// Normalize URL to remove tracking parameters
-				parsed, err := url.Parse(u)
-				if err == nil {
-					parsed.RawQuery = ""
-					urls = append(urls, parsed.String())
+			if strings.HasPrefix(u, "/read/") {
+				u = "https://health.kompas.com" + u
+			}
+			// Normalize URL to remove tracking parameters
+			parsed, err := url.Parse(u)
+			if err == nil {
+				parsed.RawQuery = ""
+				cleanURL := parsed.String()
+				if !seen[cleanURL] && !strings.Contains(cleanURL, "/video/") && !strings.Contains(cleanURL, "/galeri/") {
+					seen[cleanURL] = true
+					urls = append(urls, cleanURL)
 				}
 			}
 		}
@@ -320,7 +356,7 @@ func (a *Adapter) removeNonArticleNodes(bodyHTML string) string {
 			}
 			
 			// Same for paragraphs that just say "Baca juga:", "Simak Video", or donation appeals
-			if n.Data == "p" || n.Data == "div" {
+			if n.Data == "p" {
 				text := a.getNodeText(n)
 				lower := strings.ToLower(text)
 				if strings.HasPrefix(lower, "baca juga") ||
