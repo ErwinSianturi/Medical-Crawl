@@ -1,5 +1,5 @@
 # Stage 1: Build the binary using official Go alpine image
-FROM golang:alpine AS builder
+FROM --platform=linux/amd64 golang:alpine AS builder
 
 # Install CA certificates and tzdata for HTTPS scraping and accurate timezone support
 RUN apk add --no-cache ca-certificates tzdata
@@ -19,7 +19,7 @@ COPY web/ web/
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server ./cmd/server
 
 # Stage 2: Minimal runtime container
-FROM alpine:3.21
+FROM --platform=linux/amd64 alpine:3.21
 
 # Install CA certificates for outgoing TLS scraping and tzdata for Jakarta / UTC scheduling
 RUN apk add --no-cache ca-certificates tzdata curl

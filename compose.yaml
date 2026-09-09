@@ -3,6 +3,7 @@
     build:
       context: .
       dockerfile: Dockerfile
+    platform: linux/amd64
     container_name: medical-crawler
     restart: unless-stopped
     ports:
@@ -11,11 +12,8 @@
       - PORT=8080
       - TZ=Asia/Jakarta
     volumes:
-      # Persistent storage for scraped articles JSON
       - crawler_output:/app/output
-      # Persistent storage for crawl run sessions & timelines
       - crawler_data:/app/data
-      # Persistent storage for downloaded images
       - crawler_images:/app/gambar
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/system/status"]
