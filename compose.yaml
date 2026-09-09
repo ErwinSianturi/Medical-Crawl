@@ -1,5 +1,6 @@
 services:
   crawler:
+    image: medical-crawler:latest
     build:
       context: .
       dockerfile: Dockerfile
