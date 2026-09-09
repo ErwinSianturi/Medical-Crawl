@@ -238,6 +238,7 @@ func (a *Adapter) ParseArticleHTML(htmlContent, pageURL, defaultTitle string) (m
 	bodyHTML := a.extractArticleBodyHTML(htmlContent)
 	bodyHTML = a.removeNonArticleNodes(bodyHTML)
 	paras := a.cleanArticleBodyToParagraphs(bodyHTML)
+	paras = a.cleaner.CleanParagraphs(paras)
 	
 	art.Description = paras
 	
@@ -318,11 +319,19 @@ func (a *Adapter) removeNonArticleNodes(bodyHTML string) string {
 				}
 			}
 			
-			// Same for paragraphs that just say "Baca juga:" or "Simak Video"
-			if n.Data == "p" {
+			// Same for paragraphs that just say "Baca juga:", "Simak Video", or donation appeals
+			if n.Data == "p" || n.Data == "div" {
 				text := a.getNodeText(n)
 				lower := strings.ToLower(text)
-				if strings.HasPrefix(lower, "baca juga") || strings.HasPrefix(lower, "simak video") {
+				if strings.HasPrefix(lower, "baca juga") ||
+					strings.HasPrefix(lower, "simak video") ||
+					strings.Contains(lower, "mengulurkan tangan") ||
+					strings.Contains(lower, "kirim bantuan") ||
+					strings.Contains(lower, "salurkan bantuan") ||
+					strings.Contains(lower, "bantuwarga") ||
+					strings.Contains(lower, "bit.ly/bantu") ||
+					strings.Contains(lower, "dapatkan update berita pilihan") ||
+					strings.Contains(lower, "gabung kompas.com plus") {
 					n.Data = "span"
 					n.FirstChild = nil
 				}

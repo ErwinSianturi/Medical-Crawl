@@ -369,3 +369,33 @@ func TestCleaner_CleanImageURL(t *testing.T) {
 		}
 	}
 }
+
+func TestCleaner_KompasDatelineAndDonationAppealStripping(t *testing.T) {
+	c := NewArticleCleaner(DefaultCleanerConfig())
+
+	paras := []string{
+		"KOMPAS.com - Sebuah laporan dalam jurnal Emerging Infectious Diseases edisi September 2026 mengungkap lonjakan tajam kasus infeksi jamur Trichophyton indotineae, penyebab kurap yang kebal terhadap terbinafine, salah satu obat antijamur yang paling umum digunakan.",
+		"Infeksi jamur ini dilaporkan berkembang pesat di berbagai wilayah dan memerlukan diagnosis laboratorium yang tepat.",
+		"Saudara-saudara kita di Nusa Tenggara Timur tengah dirundung duka karena gempa M 7,7. Mari kita mengulurkan tangan untuk membantu meringankan beban yang sedang mereka hadapi. Kirim bantuan Anda melalui tautan https://bit.ly/BantuWargaNTT",
+	}
+
+	cleaned := c.CleanParagraphs(paras)
+
+	if len(cleaned) != 2 {
+		t.Fatalf("Expected exactly 2 paragraphs, got %d: %v", len(cleaned), cleaned)
+	}
+
+	// 1. Verify dateline stripped from first paragraph
+	expectedLead := "Sebuah laporan dalam jurnal Emerging Infectious Diseases edisi September 2026 mengungkap lonjakan tajam kasus infeksi jamur Trichophyton indotineae, penyebab kurap yang kebal terhadap terbinafine, salah satu obat antijamur yang paling umum digunakan."
+	if cleaned[0] != expectedLead {
+		t.Errorf("Expected leading KOMPAS.com to be stripped.\nGot: %q\nWant: %q", cleaned[0], expectedLead)
+	}
+
+	// 2. Verify donation appeal paragraph is completely removed
+	for _, p := range cleaned {
+		if strings.Contains(p, "BantuWargaNTT") || strings.Contains(p, "mengulurkan tangan") || strings.Contains(p, "dirundung duka") {
+			t.Errorf("Donation appeal was not stripped: %q", p)
+		}
+	}
+}
+

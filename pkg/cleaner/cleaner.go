@@ -24,6 +24,8 @@ var (
 	navigationReg    = regexp.MustCompile(`(?i)\b(?:skip to (?:main )?content|back to top|click here to read more|read (?:full )?article|continue reading|table of contents)\b[:\s\-.]*`)
 	advertisementReg = regexp.MustCompile(`(?i)\b(?:advertisement|sponsored content|promoted story|advertorial)\b[:\s\-.]*[^.!\n]*(?:[.!\n]|$)`)
 	cookieReg        = regexp.MustCompile(`(?i)\b(?:this website uses cookies|we use cookies to|accept (?:all )?cookies|cookie policy|manage consent|manage cookies|consent preferences)[^.!\n]*(?:[.!\n]|$)`)
+	datelineRegex    = regexp.MustCompile(`(?i)^(?:[a-zA-Z\s.,]+,\s*)?(?:kompas\.com|kompas|detikhealth|detikcom|detik\.com|ayosehat|kemenkes|antaranews|antara)(?:,\s*[a-zA-Z\s]+)?\s*[-–—:]\s*`)
+	donationRegex    = regexp.MustCompile(`(?i)\b(?:mengulurkan tangan untuk membantu|kirim bantuan anda|salurkan bantuan anda|meringankan beban yang sedang mereka hadapi|tengah dirundung duka|bantuwarga|kitabisa\.com|bit\.ly/(?:bantu|peduli|donasi)|dapatkan update berita pilihan|gabung kompas\.com plus)\b`)
 
 	ErrEmptyTitle       = errors.New("article title cannot be empty")
 	ErrTitleTooShort    = errors.New("article title is too short")
@@ -135,6 +137,10 @@ func (c *ArticleCleaner) CleanDescription(desc string) string {
 	text = cookieReg.ReplaceAllString(text, "")
 	norm := strings.ToLower(text)
 	if regexp.MustCompile(`(?i)\bdiakses pada \d{4}\b`).MatchString(norm) ||
+		donationRegex.MatchString(norm) ||
+		(strings.Contains(norm, "bantuan") && (strings.Contains(norm, "bit.ly/") || strings.Contains(norm, "tautan") || strings.Contains(norm, "rekening"))) ||
+		(strings.Contains(norm, "donasi") && (strings.Contains(norm, "bit.ly/") || strings.Contains(norm, "tautan") || strings.Contains(norm, "rekening"))) ||
+		(strings.Contains(norm, "saudara-saudara kita") && strings.Contains(norm, "duka")) ||
 		strings.Contains(norm, "jadwalkan sesi konsultasi") ||
 		strings.Contains(norm, "download aplikasi halodoc") ||
 		strings.Contains(norm, "kenapa harus chat dokter") ||
@@ -157,6 +163,7 @@ func (c *ArticleCleaner) CleanDescription(desc string) string {
 		strings.HasPrefix(cleanTrim, "daftar isi ") || strings.HasPrefix(cleanTrim, "table of contents ") {
 		return ""
 	}
+	text = datelineRegex.ReplaceAllString(text, "")
 	text = c.collapseWhitespace(text)
 	text = c.deduplicateConsecutiveText(text)
 	return strings.TrimSpace(text)
